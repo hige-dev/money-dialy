@@ -1,0 +1,131 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: Money Diary API - Go Lambda Backend
+
+Parameters:
+  SpreadsheetId:
+    Type: String
+    Description: Google Spreadsheet ID (backup用)
+    Default: ''
+  GcpProjectNumber:
+    Type: String
+    Description: GCP Project Number for Workload Identity Federation (backup用)
+    Default: ''
+  GcpWifPoolId:
+    Type: String
+    Description: Workload Identity Pool ID (backup用)
+    Default: ''
+  GcpWifProviderId:
+    Type: String
+    Description: Workload Identity Provider ID (backup用)
+    Default: ''
+  GcpServiceAccountEmail:
+    Type: String
+    Description: GCP Service Account email for Sheets API access (backup用)
+    Default: ''
+  GoogleClientId:
+    Type: String
+    Description: Google OAuth Client ID for ID Token verification
+  AllowedOrigin:
+    Type: String
+    Description: Allowed CORS origin (e.g. https://your-domain.com)
+    Default: '*'
+
+Globals:
+  Function:
+    Timeout: 30
+    MemorySize: 128
+
+Resources:
+  # DynamoDB テーブル: expenses
+  ExpensesTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-expenses"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: id
+          AttributeType: S
+        - AttributeName: yearMonth
+          AttributeType: S
+        - AttributeName: date
+          AttributeType: S
+      KeySchema:
+        - AttributeName: id
+          KeyType: HASH
+      GlobalSecondaryIndexes:
+        - IndexName: yearMonth-date-index
+          KeySchema:
+            - AttributeName: yearMonth
+              KeyType: HASH
+            - AttributeName: date
+              KeyType: RANGE
+          Projection:
+            ProjectionType: ALL
+
+  # DynamoDB テーブル: master (categories/places/payers/users)
+  MasterTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${AWS::StackName}-master"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: type
+          AttributeType: S
+        - AttributeName: id
+          AttributeType: S
+      KeySchema:
+        - AttributeName: type
+          KeyType: HASH
+        - AttributeName: id
+          KeyType: RANGE
+
+  # Lambda 関数
+  MoneyDiaryApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Handler: bootstrap
+      Runtime: provided.al2023
+      CodeUri: .
+      Architectures:
+        - x86_64
+      FunctionUrlConfig:
+        AuthType: AWS_IAM
+      Events:
+        MonthlyRecurring:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 0 1 * ? *)
+            Description: 毎月1日 0:00 UTC に定期支出を自動登録
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref ExpensesTable
+        - DynamoDBCrudPolicy:
+            TableName: !Ref MasterTable
+      Environment:
+        Variables:
+          DYNAMO_EXPENSE_TABLE: !Ref ExpensesTable
+          DYNAMO_MASTER_TABLE: !Ref MasterTable
+          SPREADSHEET_ID: !Ref SpreadsheetId
+          GCP_PROJECT_NUMBER: !Ref GcpProjectNumber
+          GCP_WIF_POOL_ID: !Ref GcpWifPoolId
+          GCP_WIF_PROVIDER_ID: !Ref GcpWifProviderId
+          GCP_SERVICE_ACCOUNT_EMAIL: !Ref GcpServiceAccountEmail
+          GOOGLE_CLIENT_ID: !Ref GoogleClientId
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
+    Metadata:
+      BuildMethod: makefile
+
+Outputs:
+  FunctionUrl:
+    Description: Lambda Function URL
+    Value: !GetAtt MoneyDiaryApiFunctionUrl.FunctionUrl
+  FunctionArn:
+    Description: Lambda Function ARN
+    Value: !GetAtt MoneyDiaryApiFunction.Arn
+  ExpensesTableName:
+    Description: DynamoDB Expenses Table
+    Value: !Ref ExpensesTable
+  MasterTableName:
+    Description: DynamoDB Master Table
+    Value: !Ref MasterTable
