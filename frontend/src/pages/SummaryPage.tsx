@@ -168,6 +168,7 @@ export function SummaryPage() {
   const [loading, setLoading] = useState(true);
   const [expandedChart, setExpandedChart] = useState<'doughnut' | 'bar' | null>(null);
   const [filterCount, setFilterCount] = useState(0);
+  const [breakdownTab, setBreakdownTab] = useState<'category' | 'place'>('category');
   const navigate = useNavigate();
   const selectedRef = useRef(new Set<number>());
   const barScrollRef = useRef<HTMLDivElement>(null);
@@ -406,11 +407,25 @@ export function SummaryPage() {
         </div>
       )}
 
-      {/* カテゴリ別内訳 */}
-      {categories.length > 0 && (
+      {/* 内訳タブ */}
+      {(categories.length > 0 || placeRanking.length > 0) && (
         <div className="summary-category-list">
-          <h3 style={{ fontSize: '0.9rem', margin: '0 0 8px' }}>カテゴリ別内訳</h3>
-          {categories.map((cat) => {
+          <div className="summary-breakdown-tabs">
+            <button
+              className={`summary-breakdown-tab ${breakdownTab === 'category' ? 'active' : ''}`}
+              onClick={() => setBreakdownTab('category')}
+            >
+              カテゴリ別
+            </button>
+            <button
+              className={`summary-breakdown-tab ${breakdownTab === 'place' ? 'active' : ''}`}
+              onClick={() => setBreakdownTab('place')}
+            >
+              場所別
+            </button>
+          </div>
+
+          {breakdownTab === 'category' && categories.map((cat) => {
             const percent = summary.total > 0
               ? ((cat.amount / summary.total) * 100).toFixed(1)
               : '0.0';
@@ -423,14 +438,8 @@ export function SummaryPage() {
               </div>
             );
           })}
-        </div>
-      )}
 
-      {/* 場所別内訳 */}
-      {placeRanking.length > 0 && (
-        <div className="summary-category-list">
-          <h3 style={{ fontSize: '0.9rem', margin: '0 0 8px' }}>場所別内訳</h3>
-          {placeRanking.map((item) => (
+          {breakdownTab === 'place' && placeRanking.map((item) => (
             <div key={item.place} className="summary-category-item">
               <span className="summary-category-name">{item.place}</span>
               <span className="summary-category-amount">&yen;{item.amount.toLocaleString()}</span>
@@ -439,6 +448,9 @@ export function SummaryPage() {
           ))}
         </div>
       )}
+
+      {/* 最下部の月移動 */}
+      <MonthPicker value={date} onChange={setDate} mode="month" />
 
       {/* 定期支出・設定リンク */}
       <div className="summary-recurring-link">
