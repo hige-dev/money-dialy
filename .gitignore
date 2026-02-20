@@ -1,0 +1,33 @@
+# Dependencies
+node_modules/
+
+# Build outputs
+frontend/dist/
+lambda/bootstrap
+
+# Environment files
+.env
+.env.*
+!.env.example
+!.env.setup.example
+
+# SAM
+lambda/samconfig.toml
+lambda/.aws-sam/
+
+# Go
+lambda/tmp/
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code
+.claude/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
