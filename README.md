@@ -196,6 +196,73 @@ Lambda がデプロイ済みであれば、ローカルで API 連携の動作�
 | `scripts/deploy-backend.sh` | Lambda ビルド + SAM デプロイ |
 | `scripts/deploy-frontend.sh` | フロントエンドビルド + S3 同期 + CloudFront 無効化 |
 
+## セキュリティ
+
+### 認証・認可
+
+- **Google OAuth 2.0** — フロントエンドで取得した ID Token を
+  Lambda 側で `go-oidc/v3` により署名検証。
+  DynamoDB の master テーブルに登録済みのメールアドレスのみアクセスを許可
+- **シークレット管理** — API キーやクレデンシャルのハードコーディングなし。
+  すべて環境変数 or SAM パラメータで管理
+
+### API 保護
+
+- **Lambda Function URL + CloudFront OAC** —
+  Function URL の `AuthType: AWS_IAM` と CloudFront OAC（SigV4 署名）により、
+  CloudFront 経由以外のアクセスを遮断。
+  フロントエンドは POST ボディの SHA-256 ハッシュを
+  `x-amz-content-sha256` ヘッダーで送信し署名整合性を維持
+- **CORS ホワイトリスト** — `ALLOWED_ORIGIN` 環境変数で許可オリジンを制限
+
+### Google Sheets API 接続
+
+- **Workload Identity Federation（WIF）** —
+  サービスアカウントキーファイルを持たずに、
+  Lambda 実行ロールの AWS 認証情報から GCP STS 経由で Sheets API にアクセス。
+  長期クレデンシャルの漏洩リスクを排除
+
+## コスト
+
+**AWS 無料枠内** で運用できるよう設計しています。
+
+### コンピュート
+
+- **Lambda 128 MB** — 最小メモリで十分な Go バイナリ。
+  月 10,000 リクエスト程度では無料枠内
+- **EventBridge Schedule** — 定期支出の月次登録 + 日次バックアップで
+  月 60 イベント程度。無料枠（月 14M イベント）内
+
+### データストア
+
+- **DynamoDB オンデマンド** — 個人用途のリクエスト量は
+  無料枠（読み取り 25 RRU / 書き込み 25 WRU、ストレージ 25 GB）に収まる
+- **GSI `yearMonth-date-index`** — 月別クエリを Scan ではなく Query で実行し、
+  読み取りユニット消費を最小化
+- **集計キャッシュ** — 月別サマリーを DynamoDB にキャッシュ保存し、
+  毎リクエストの再集計を回避
+
+### 配信
+
+- **CloudFront 無料プラン** — Flat-rate Free プラン（$0/月）を利用。
+  月 100 GB 転送 / 100 万リクエストまで無料、WAF ルール 5 個・DDoS 保護付き。
+  個人用途には十分で、超過時もオーバーチャージなし
+- **キャッシュ戦略** — Vite のハッシュ付きアセットに
+  `Cache-Control: public, max-age=31536000, immutable` を設定。
+  キャッシュヒット率をほぼ 100% に維持し、S3 GET リクエストと転送量を削減
+- **index.html のみ `no-cache`** — デプロイ時に最新バージョンを即時反映
+
+### フロントエンド API キャッシュ
+
+- マスタデータ・月別支出・集計をメモリキャッシュし、
+  同一セッション内の重複 API 呼び出しを削減。Lambda 実行回数を 30〜50% 低減
+
+### バックアップ
+
+- **Google Sheets への日次全件洗い替え** — 個別の非同期バックアップ（CRUD ごと）ではなく、
+  1 日 1 回の一括同期でシンプルさと整合性を両立。
+  Sheets API 呼び出し回数も最小限に抑制
+
 ## ライセンス
 
 MIT
