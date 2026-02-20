@@ -4,8 +4,8 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearSca
 import type { ChartOptions } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import { MonthPicker } from '../components/MonthPicker';
-import { summaryApi, payersApi } from '../services/api';
-import type { MonthlySummary, YearlySummary, Payer, PayerBalance, CategorySummary } from '../types';
+import { summaryApi, payersApi, expensesApi } from '../services/api';
+import type { MonthlySummary, YearlySummary, Payer, PayerBalance, CategorySummary, Expense } from '../types';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
@@ -71,7 +71,7 @@ function toRgba(hex: string, alpha: number): string {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
-function buildStackedBarOptions(selectedRef: React.RefObject<Set<number>>): ChartOptions<'bar'> {
+function buildStackedBarOptions(selectedRef: React.RefObject<Set<number>>, onFilterChange: (count: number) => void): ChartOptions<'bar'> {
   const isFiltered = () => selectedRef.current.size > 0;
   return {
     responsive: true,
@@ -106,6 +106,7 @@ function buildStackedBarOptions(selectedRef: React.RefObject<Set<number>>): Char
             });
           }
           chart.update();
+          onFilterChange(selected.size);
         },
         onHover: (_event, legendItem, legend) => {
           if (isFiltered()) return;
@@ -163,13 +164,15 @@ export function SummaryPage() {
   const [payers, setPayers] = useState<Payer[]>([]);
   const [selectedPayer, setSelectedPayer] = useState('');
   const [payerBalance, setPayerBalance] = useState<PayerBalance | null>(null);
+  const [expenses, setExpenses] = useState<Expense[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedChart, setExpandedChart] = useState<'doughnut' | 'bar' | null>(null);
+  const [filterCount, setFilterCount] = useState(0);
   const navigate = useNavigate();
   const selectedRef = useRef(new Set<number>());
   const barScrollRef = useRef<HTMLDivElement>(null);
   const barChartRef = useRef<ChartJS<'bar'>>(null);
-  const stackedBarOptions = useMemo(() => buildStackedBarOptions(selectedRef), []);
+  const stackedBarOptions = useMemo(() => buildStackedBarOptions(selectedRef, setFilterCount), []);
 
   const month = getMonth(date);
 
@@ -182,12 +185,14 @@ export function SummaryPage() {
     setLoading(true);
     try {
       const payer = selectedPayer || undefined;
-      const [m, y] = await Promise.all([
+      const [m, y, exp] = await Promise.all([
         summaryApi.getMonthly(month, payer),
         summaryApi.getYearly(month, payer),
+        expensesApi.getByMonth(month),
       ]);
       setSummary(m);
       setYearly(y);
+      setExpenses(exp || []);
 
       // trackBalance=true の支払元が選択されている場合のみ残額を取得
       const selectedPayerObj = payers.find((p) => p.name === selectedPayer);
@@ -211,8 +216,25 @@ export function SummaryPage() {
   // カテゴリ別積み上げ棒グラフデータ（yearlyが変わった時だけ再生成＆選択解除）
   const stackedBarData = useMemo(() => {
     selectedRef.current.clear();
+    setFilterCount(0);
     return yearly ? buildStackedBarData(yearly) : null;
   }, [yearly]);
+
+  // 場所別集計
+  const placeRanking = useMemo(() => {
+    const filtered = selectedPayer
+      ? expenses.filter((e) => e.payer === selectedPayer)
+      : expenses;
+    const map = new Map<string, number>();
+    for (const e of filtered) {
+      const place = e.place || '未設定';
+      map.set(place, (map.get(place) || 0) + e.amount);
+    }
+    const total = Array.from(map.values()).reduce((a, b) => a + b, 0);
+    return Array.from(map.entries())
+      .map(([place, amount]) => ({ place, amount, percent: total > 0 ? (amount / total) * 100 : 0 }))
+      .sort((a, b) => b.amount - a.amount);
+  }, [expenses, selectedPayer]);
 
   // 拡大/縮小時・データ変更時にChart.jsのレイアウト再計算＆右端スクロール
   useEffect(() => {
@@ -349,12 +371,32 @@ export function SummaryPage() {
         <div className={`summary-chart ${expandedChart === 'bar' ? 'expanded' : ''}`}>
           <div className="summary-chart-header">
             <h3>カテゴリ別月推移</h3>
-            <button
-              className="chart-expand-btn"
-              onClick={() => setExpandedChart(expandedChart === 'bar' ? null : 'bar')}
-            >
-              {expandedChart === 'bar' ? '✕' : '⤢'}
-            </button>
+            <div style={{ display: 'flex', gap: 4 }}>
+              {filterCount > 0 && selectedRef.current.size > 0 && (
+                <button
+                  className="chart-expand-btn"
+                  style={{ fontSize: '0.75rem' }}
+                  onClick={() => {
+                    const chart = barChartRef.current;
+                    if (!chart) return;
+                    selectedRef.current.clear();
+                    chart.data.datasets.forEach((_ds, i) => {
+                      chart.setDatasetVisibility(i, true);
+                    });
+                    chart.update();
+                    setFilterCount(0);
+                  }}
+                >
+                  リセット
+                </button>
+              )}
+              <button
+                className="chart-expand-btn"
+                onClick={() => setExpandedChart(expandedChart === 'bar' ? null : 'bar')}
+              >
+                {expandedChart === 'bar' ? '✕' : '⤢'}
+              </button>
+            </div>
           </div>
           <div className="chart-scroll-container" ref={barScrollRef}>
             <div className="chart-scroll-inner">
@@ -381,6 +423,20 @@ export function SummaryPage() {
               </div>
             );
           })}
+        </div>
+      )}
+
+      {/* 場所別内訳 */}
+      {placeRanking.length > 0 && (
+        <div className="summary-category-list">
+          <h3 style={{ fontSize: '0.9rem', margin: '0 0 8px' }}>場所別内訳</h3>
+          {placeRanking.map((item) => (
+            <div key={item.place} className="summary-category-item">
+              <span className="summary-category-name">{item.place}</span>
+              <span className="summary-category-amount">&yen;{item.amount.toLocaleString()}</span>
+              <span className="summary-category-percent">{item.percent.toFixed(1)}%</span>
+            </div>
+          ))}
         </div>
       )}
 
