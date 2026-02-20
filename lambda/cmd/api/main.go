@@ -20,6 +20,13 @@ func route(ctx context.Context, event json.RawMessage) (any, error) {
 	if err := json.Unmarshal(event, &httpEvent); err == nil && httpEvent.RequestContext.HTTP.Method != "" {
 		return handler.Handle(ctx, httpEvent)
 	}
-	// EventBridge Schedule などの非HTTPイベント → 定期支出の自動登録
+	// 非HTTPイベント: action で振り分け
+	var scheduled struct {
+		Action string `json:"action"`
+	}
+	if err := json.Unmarshal(event, &scheduled); err == nil && scheduled.Action == "backup" {
+		return handler.HandleBackup(ctx)
+	}
+	// デフォルト: 定期支出の自動登録（後方互換）
 	return handler.HandleScheduled(ctx)
 }

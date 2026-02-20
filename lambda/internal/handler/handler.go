@@ -11,6 +11,7 @@ import (
 
 	"money-diary/internal/apperror"
 	"money-diary/internal/auth"
+	"money-diary/internal/backup"
 	"money-diary/internal/dynamo"
 	"money-diary/internal/model"
 	"money-diary/internal/service"
@@ -313,6 +314,20 @@ func HandleScheduled(ctx context.Context) (any, error) {
 	}
 	log.Printf("ProcessRecurringExpenses: %d件作成", count)
 	return map[string]int{"created": count}, nil
+}
+
+// HandleBackup は EventBridge Schedule から呼ばれ、DynamoDB → Sheets バックアップを行う
+func HandleBackup(ctx context.Context) (any, error) {
+	client, err := dynamo.NewClient(ctx)
+	if err != nil {
+		log.Printf("DynamoDB client error: %v", err)
+		return nil, err
+	}
+	if err := backup.SyncExpenses(ctx, client); err != nil {
+		log.Printf("SyncExpenses error: %v", err)
+		return nil, err
+	}
+	return map[string]string{"status": "ok"}, nil
 }
 
 func init() {

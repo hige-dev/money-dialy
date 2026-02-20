@@ -97,6 +97,12 @@ Resources:
           Properties:
             Schedule: cron(0 0 1 * ? *)
             Description: 毎月1日 0:00 UTC に定期支出を自動登録
+        DailyBackup:
+          Type: Schedule
+          Properties:
+            Schedule: cron(0 15 * * ? *)
+            Description: 毎日 15:00 UTC (JST 0:00) に DynamoDB → Sheets バックアップ
+            Input: '{"action":"backup"}'
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref ExpensesTable

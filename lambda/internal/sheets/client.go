@@ -117,6 +117,36 @@ func (c *Client) DeleteRow(ctx context.Context, sheetName string, rowIndex int) 
 	return nil
 }
 
+// ClearSheet はヘッダー行(A1)を残して A2:Z をクリアする
+func (c *Client) ClearSheet(ctx context.Context, sheetName string) error {
+	rng := fmt.Sprintf("%s!A2:Z", sheetName)
+	_, err := c.service.Spreadsheets.Values.Clear(c.spreadsheetID, rng, &sheets.ClearValuesRequest{}).Context(ctx).Do()
+	if err != nil {
+		return fmt.Errorf("シート %q のクリアに失敗: %w", sheetName, err)
+	}
+	return nil
+}
+
+// BatchUpdateRows は A2 から複数行を一括書き込みする
+func (c *Client) BatchUpdateRows(ctx context.Context, sheetName string, rows [][]interface{}) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	rng := fmt.Sprintf("%s!A2", sheetName)
+	vr := &sheets.ValueRange{
+		Values: rows,
+	}
+	_, err := c.service.Spreadsheets.Values.
+		Update(c.spreadsheetID, rng, vr).
+		ValueInputOption("RAW").
+		Context(ctx).
+		Do()
+	if err != nil {
+		return fmt.Errorf("シート %q への一括書き込みに失敗: %w", sheetName, err)
+	}
+	return nil
+}
+
 // CellString はセル値を文字列として安全に取得する
 func CellString(row []interface{}, index int) string {
 	if index >= len(row) {

@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 
 	"money-diary/internal/apperror"
-	"money-diary/internal/backup"
 	"money-diary/internal/dynamo"
 	"money-diary/internal/model"
 )
@@ -47,7 +46,6 @@ func CreateExpense(ctx context.Context, client *dynamo.Client, input *model.Expe
 		return nil, err
 	}
 
-	backup.CreateExpense(ctx, &expense)
 	refreshSummaryCache(ctx, client, expense.Date)
 	return &expense, nil
 }
@@ -80,7 +78,6 @@ func UpdateExpense(ctx context.Context, client *dynamo.Client, id string, input 
 		return nil, err
 	}
 
-	backup.UpdateExpense(ctx, existing)
 	refreshSummaryCache(ctx, client, existing.Date)
 	if len(oldDate) >= 7 && len(existing.Date) >= 7 && oldDate[:7] != existing.Date[:7] {
 		refreshSummaryCache(ctx, client, oldDate)
@@ -96,7 +93,6 @@ func DeleteExpense(ctx context.Context, client *dynamo.Client, id string) error 
 	if err := client.DeleteExpense(ctx, id); err != nil {
 		return err
 	}
-	backup.DeleteExpense(ctx, id)
 	if existing != nil {
 		refreshSummaryCache(ctx, client, existing.Date)
 	}

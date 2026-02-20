@@ -2,22 +2,17 @@ package backup
 
 import (
 	"context"
+	"fmt"
 	"log"
-	"os"
+	"sort"
 	"strconv"
 
+	"money-diary/internal/dynamo"
 	"money-diary/internal/model"
 	"money-diary/internal/sheets"
 )
 
 const expensesSheet = "expenses"
-
-// enabled は SPREADSHEET_ID が設定されている場合のみ true
-var enabled bool
-
-func init() {
-	enabled = os.Getenv("SPREADSHEET_ID") != ""
-}
 
 func expenseToRow(e *model.Expense) []interface{} {
 	return []interface{}{
@@ -34,81 +29,35 @@ func expenseToRow(e *model.Expense) []interface{} {
 	}
 }
 
-// CreateExpense は非同期で Sheets にバックアップ行を追加する
-func CreateExpense(ctx context.Context, e *model.Expense) {
-	if !enabled {
-		return
+// SyncExpenses は DynamoDB の全支出を Google Sheets に全件洗い替えする
+func SyncExpenses(ctx context.Context, dynamoClient *dynamo.Client) error {
+	expenses, err := dynamoClient.ScanAllExpenses(ctx)
+	if err != nil {
+		return fmt.Errorf("DynamoDB scan failed: %w", err)
 	}
-	go func() {
-		bgCtx := context.Background()
-		client, err := sheets.NewClient(bgCtx)
-		if err != nil {
-			log.Printf("[backup] Sheets client error: %v", err)
-			return
-		}
-		if err := client.AppendRow(bgCtx, expensesSheet, expenseToRow(e)); err != nil {
-			log.Printf("[backup] CreateExpense error: %v", err)
-		}
-	}()
-}
 
-// UpdateExpense は非同期で Sheets のバックアップ行を更新する
-func UpdateExpense(ctx context.Context, e *model.Expense) {
-	if !enabled {
-		return
-	}
-	go func() {
-		bgCtx := context.Background()
-		client, err := sheets.NewClient(bgCtx)
-		if err != nil {
-			log.Printf("[backup] Sheets client error: %v", err)
-			return
-		}
-		data, err := client.GetSheetData(bgCtx, expensesSheet)
-		if err != nil {
-			log.Printf("[backup] UpdateExpense read error: %v", err)
-			return
-		}
-		for i := 1; i < len(data); i++ {
-			if sheets.CellString(data[i], 0) == e.ID {
-				if err := client.UpdateRow(bgCtx, expensesSheet, i+1, expenseToRow(e)); err != nil {
-					log.Printf("[backup] UpdateExpense write error: %v", err)
-				}
-				return
-			}
-		}
-		// ID が見つからない場合は追記
-		if err := client.AppendRow(bgCtx, expensesSheet, expenseToRow(e)); err != nil {
-			log.Printf("[backup] UpdateExpense append error: %v", err)
-		}
-	}()
-}
+	sort.Slice(expenses, func(i, j int) bool {
+		return expenses[i].Date > expenses[j].Date
+	})
 
-// DeleteExpense は非同期で Sheets のバックアップ行を削除する
-func DeleteExpense(ctx context.Context, id string) {
-	if !enabled {
-		return
+	sheetsClient, err := sheets.NewClient(ctx)
+	if err != nil {
+		return fmt.Errorf("Sheets client init failed: %w", err)
 	}
-	go func() {
-		bgCtx := context.Background()
-		client, err := sheets.NewClient(bgCtx)
-		if err != nil {
-			log.Printf("[backup] Sheets client error: %v", err)
-			return
-		}
-		data, err := client.GetSheetData(bgCtx, expensesSheet)
-		if err != nil {
-			log.Printf("[backup] DeleteExpense read error: %v", err)
-			return
-		}
-		for i := 1; i < len(data); i++ {
-			if sheets.CellString(data[i], 0) == id {
-				if err := client.DeleteRow(bgCtx, expensesSheet, i+1); err != nil {
-					log.Printf("[backup] DeleteExpense delete error: %v", err)
-				}
-				return
-			}
-		}
-		log.Printf("[backup] DeleteExpense: ID %s not found in sheet", id)
-	}()
+
+	if err := sheetsClient.ClearSheet(ctx, expensesSheet); err != nil {
+		return fmt.Errorf("sheet clear failed: %w", err)
+	}
+
+	rows := make([][]interface{}, len(expenses))
+	for i := range expenses {
+		rows[i] = expenseToRow(&expenses[i])
+	}
+
+	if err := sheetsClient.BatchUpdateRows(ctx, expensesSheet, rows); err != nil {
+		return fmt.Errorf("batch update failed: %w", err)
+	}
+
+	log.Printf("[backup] SyncExpenses: %d件書き込み完了", len(expenses))
+	return nil
 }
