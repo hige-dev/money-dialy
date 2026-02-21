@@ -6,7 +6,7 @@ import { readFileSync, unlinkSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
-const LAMBDA_FUNCTION_NAME = 'money-diary-MoneyDiaryApiFunction-uiyZNyXhLKpW'
+const LAMBDA_FUNCTION_NAME = process.env.LAMBDA_FUNCTION_NAME || ''
 
 /**
  * ローカル開発用: /api へのリクエストを aws lambda invoke で直接呼び出す。
