@@ -776,13 +776,21 @@
   margin-bottom: 4px;
 }
 
-.modal-field input,
+.modal-field input:not([type="checkbox"]),
 .modal-field select {
   width: 100%;
   padding: 10px 12px;
   border: 1px solid #d1d5db;
   border-radius: 8px;
   font-size: 1rem;
+}
+
+.modal-field input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #3b82f6;
+  cursor: pointer;
+  flex-shrink: 0;
 }
 
 .modal-actions {

@@ -4,28 +4,35 @@ import type { Category, Place, Payer, CategoryInput, PlaceInput, PayerInput } fr
 
 type Tab = 'categories' | 'places' | 'payers';
 
-const PRESET_COLORS = [
-  '#ef4444', '#f97316', '#f59e0b', '#eab308',
-  '#84cc16', '#22c55e', '#14b8a6', '#06b6d4',
-  '#3b82f6', '#6366f1', '#8b5cf6', '#a855f7',
-  '#d946ef', '#ec4899', '#f43f5e', '#78716c',
-];
+function generateGradientColors(count: number): string[] {
+  const colors: string[] = [];
+  for (let i = 0; i < count; i++) {
+    const hue = Math.round((360 * i) / count);
+    colors.push(`hsl(${hue}, 65%, 55%)`);
+  }
+  return colors;
+}
 
 // --- カテゴリモーダル ---
 function CategoryModal({
   initial,
+  categories,
   onSave,
   onDelete,
   onClose,
 }: {
   initial?: Category;
+  categories: Category[];
   onSave: (input: CategoryInput) => void;
   onDelete?: () => void;
   onClose: () => void;
 }) {
+  const gradientColors = generateGradientColors(Math.max(categories.length + 1, 8));
+  const defaultColor = initial?.color || gradientColors[categories.length % gradientColors.length];
+
   const [name, setName] = useState(initial?.name || '');
   const [sortOrder, setSortOrder] = useState(String(initial?.sortOrder ?? 0));
-  const [color, setColor] = useState(initial?.color || '#3b82f6');
+  const [color, setColor] = useState(defaultColor);
   const [isActive, setIsActive] = useState(initial?.isActive ?? true);
   const [isExpense, setIsExpense] = useState(initial?.isExpense ?? true);
   const [excludeFromBreakdown, setExcludeFromBreakdown] = useState(initial?.excludeFromBreakdown ?? false);
@@ -46,9 +53,9 @@ function CategoryModal({
         <div className="modal-field">
           <label>色</label>
           <div className="settings-color-picker">
-            {PRESET_COLORS.map((c) => (
+            {gradientColors.map((c, i) => (
               <button
-                key={c}
+                key={i}
                 className={`settings-color-swatch ${color === c ? 'selected' : ''}`}
                 style={{ background: c }}
                 onClick={() => setColor(c)}
@@ -388,6 +395,34 @@ export function SettingsPage() {
       {tab === 'categories' && (
         <>
           <div className="settings-add-row">
+            <button
+              className="recurring-add-btn"
+              style={{ fontSize: '0.75rem', padding: '4px 10px', background: '#f3f4f6', color: '#374151' }}
+              onClick={async () => {
+                if (!confirm('全カテゴリの色を並び順に応じたグラデーションに振り直しますか？')) return;
+                const sorted = [...categories].sort((a, b) => a.sortOrder - b.sortOrder);
+                const colors = generateGradientColors(sorted.length);
+                try {
+                  for (let i = 0; i < sorted.length; i++) {
+                    await categoriesApi.update(sorted[i].id, {
+                      name: sorted[i].name,
+                      sortOrder: sorted[i].sortOrder,
+                      color: colors[i],
+                      isActive: sorted[i].isActive,
+                      isExpense: sorted[i].isExpense,
+                      excludeFromBreakdown: sorted[i].excludeFromBreakdown,
+                    });
+                  }
+                  setCategories(await categoriesApi.getAllIncludingInactive() || []);
+                  setToast('色を振り直しました');
+                } catch (e) {
+                  console.error(e);
+                  setToast('色の振り直しに失敗しました');
+                }
+              }}
+            >
+              色を自動振り分け
+            </button>
             <button className="recurring-add-btn" onClick={() => setEditCategory('new')}>+ 追加</button>
           </div>
           <div className="settings-list">
@@ -413,6 +448,7 @@ export function SettingsPage() {
           {editCategory && (
             <CategoryModal
               initial={editCategory === 'new' ? undefined : editCategory}
+              categories={categories}
               onSave={handleSaveCategory}
               onDelete={editCategory !== 'new' ? () => handleDeleteCategory(editCategory.id) : undefined}
               onClose={() => setEditCategory(null)}
