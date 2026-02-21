@@ -12,9 +12,14 @@ import (
 	"money-diary/internal/model"
 )
 
-// GetExpensesByMonth は指定月の支出一覧を返す（新しい日付順、GSI 使用）
-func GetExpensesByMonth(ctx context.Context, client *dynamo.Client, month string) ([]model.Expense, error) {
-	return client.QueryExpensesByMonth(ctx, month)
+// GetExpensesByMonth は指定月の支出一覧を返す（新しい日付順、GSI 使用）。
+// リクエスト者に応じて visibility フィルタを適用する。
+func GetExpensesByMonth(ctx context.Context, client *dynamo.Client, month string, userEmail string) ([]model.Expense, error) {
+	expenses, err := client.QueryExpensesByMonth(ctx, month)
+	if err != nil {
+		return nil, err
+	}
+	return FilterExpensesForUser(expenses, userEmail), nil
 }
 
 // GetAllExpenses は全支出データを返す
@@ -28,18 +33,23 @@ func CreateExpense(ctx context.Context, client *dynamo.Client, input *model.Expe
 		return nil, apperror.New("日付、カテゴリ、金額（0より大きい値）は必須です")
 	}
 
+	if !ValidateVisibility(input.Visibility) {
+		return nil, apperror.New("visibility は public, summary, private のいずれかを指定してください")
+	}
+
 	now := time.Now().UTC().Format(time.RFC3339)
 	expense := model.Expense{
-		ID:        uuid.New().String(),
-		Date:      input.Date,
-		Payer:     input.Payer,
-		Category:  input.Category,
-		Amount:    input.Amount,
-		Memo:      input.Memo,
-		Place:     input.Place,
-		CreatedBy: userEmail,
-		CreatedAt: now,
-		UpdatedAt: now,
+		ID:         uuid.New().String(),
+		Date:       input.Date,
+		Payer:      input.Payer,
+		Category:   input.Category,
+		Amount:     input.Amount,
+		Memo:       input.Memo,
+		Place:      input.Place,
+		Visibility: input.Visibility,
+		CreatedBy:  userEmail,
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 
 	if err := client.PutExpense(ctx, &expense); err != nil {
@@ -66,12 +76,17 @@ func UpdateExpense(ctx context.Context, client *dynamo.Client, id string, input 
 
 	oldDate := existing.Date
 
+	if !ValidateVisibility(input.Visibility) {
+		return nil, apperror.New("visibility は public, summary, private のいずれかを指定してください")
+	}
+
 	existing.Date = input.Date
 	existing.Payer = input.Payer
 	existing.Category = input.Category
 	existing.Amount = input.Amount
 	existing.Memo = input.Memo
 	existing.Place = input.Place
+	existing.Visibility = input.Visibility
 	existing.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
 
 	if err := client.PutExpense(ctx, existing); err != nil {

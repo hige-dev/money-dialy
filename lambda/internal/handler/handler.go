@@ -139,7 +139,7 @@ func handleAction(ctx context.Context, client *dynamo.Client, req *model.ActionR
 		if req.Month == "" {
 			return nil, apperror.New("month は必須です")
 		}
-		return service.GetExpensesByMonth(ctx, client, req.Month)
+		return service.GetExpensesByMonth(ctx, client, req.Month, userEmail)
 
 	case "createExpense":
 		if req.Expense == nil {
@@ -166,13 +166,13 @@ func handleAction(ctx context.Context, client *dynamo.Client, req *model.ActionR
 		if req.Month == "" {
 			return nil, apperror.New("month は必須です")
 		}
-		return service.GetMonthlySummary(ctx, client, req.Month, req.Payer)
+		return service.GetMonthlySummary(ctx, client, req.Month, req.Payer, userEmail)
 
 	case "getYearlySummary":
 		if req.Month == "" {
 			return nil, apperror.New("month は必須です")
 		}
-		return service.GetYearlySummary(ctx, client, req.Month, req.Payer)
+		return service.GetYearlySummary(ctx, client, req.Month, req.Payer, userEmail)
 
 	case "getPayerBalance":
 		if req.Payer == "" {

@@ -2,26 +2,28 @@ package model
 
 // Expense は支出データ
 type Expense struct {
-	ID        string `json:"id"`
-	Date      string `json:"date"`
-	Payer     string `json:"payer"`
-	Category  string `json:"category"`
-	Amount    int    `json:"amount"`
-	Memo      string `json:"memo"`
-	Place     string `json:"place"`
-	CreatedBy string `json:"createdBy"`
-	CreatedAt string `json:"createdAt"`
-	UpdatedAt string `json:"updatedAt"`
+	ID         string `json:"id"`
+	Date       string `json:"date"`
+	Payer      string `json:"payer"`
+	Category   string `json:"category"`
+	Amount     int    `json:"amount"`
+	Memo       string `json:"memo"`
+	Place      string `json:"place"`
+	Visibility string `json:"visibility"` // "public" | "summary" | "private"（空="" は "public" 扱い）
+	CreatedBy  string `json:"createdBy"`
+	CreatedAt  string `json:"createdAt"`
+	UpdatedAt  string `json:"updatedAt"`
 }
 
 // ExpenseInput は支出登録・更新のリクエスト
 type ExpenseInput struct {
-	Date     string `json:"date"`
-	Payer    string `json:"payer"`
-	Category string `json:"category"`
-	Amount   int    `json:"amount"`
-	Memo     string `json:"memo"`
-	Place    string `json:"place"`
+	Date       string `json:"date"`
+	Payer      string `json:"payer"`
+	Category   string `json:"category"`
+	Amount     int    `json:"amount"`
+	Memo       string `json:"memo"`
+	Place      string `json:"place"`
+	Visibility string `json:"visibility"`
 }
 
 // Place は場所マスタ
