@@ -115,6 +115,7 @@ type categoryItem struct {
 	IsActive             bool   `dynamodbav:"isActive"`
 	IsExpense            bool   `dynamodbav:"isExpense"`
 	ExcludeFromBreakdown bool   `dynamodbav:"excludeFromBreakdown"`
+	ExcludeFromSummary   bool   `dynamodbav:"excludeFromSummary"`
 }
 
 // placeItem は DynamoDB master テーブルの場所アイテム
@@ -293,6 +294,7 @@ func (c *Client) GetCategories(ctx context.Context) ([]model.Category, error) {
 				IsActive:             item.IsActive,
 				IsExpense:            item.IsExpense,
 				ExcludeFromBreakdown: item.ExcludeFromBreakdown,
+				ExcludeFromSummary:   item.ExcludeFromSummary,
 			})
 		}
 	}
@@ -373,6 +375,7 @@ func (c *Client) GetAllCategories(ctx context.Context) ([]model.Category, error)
 			ID: item.ID, Name: item.Name, SortOrder: item.SortOrder,
 			Color: item.Color, IsActive: item.IsActive, IsExpense: item.IsExpense,
 			ExcludeFromBreakdown: item.ExcludeFromBreakdown,
+			ExcludeFromSummary:   item.ExcludeFromSummary,
 		}
 	}
 	sort.Slice(categories, func(i, j int) bool {
@@ -387,6 +390,7 @@ func (c *Client) PutCategory(ctx context.Context, cat *model.Category) error {
 		Type: "category", ID: cat.ID, Name: cat.Name, SortOrder: cat.SortOrder,
 		Color: cat.Color, IsActive: cat.IsActive, IsExpense: cat.IsExpense,
 		ExcludeFromBreakdown: cat.ExcludeFromBreakdown,
+		ExcludeFromSummary:   cat.ExcludeFromSummary,
 	}
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {
@@ -688,9 +692,10 @@ func (c *Client) UpdateRecurringLastCreated(ctx context.Context, id string, mont
 
 // categorySumItem は DynamoDB 内のカテゴリ別集計
 type categorySumItem struct {
-	Category string `dynamodbav:"category"`
-	Amount   int    `dynamodbav:"amount"`
-	Color    string `dynamodbav:"color"`
+	CategoryID string `dynamodbav:"categoryId"`
+	Category   string `dynamodbav:"category"`
+	Amount     int    `dynamodbav:"amount"`
+	Color      string `dynamodbav:"color"`
 }
 
 // monthlySumCacheItem は DynamoDB 内の月別集計キャッシュ
@@ -729,7 +734,7 @@ func (c *Client) PutMonthlySummaryCache(ctx context.Context, data *model.MonthDa
 	var cats []categorySumItem
 	for _, cs := range data.ByCategory {
 		cats = append(cats, categorySumItem{
-			Category: cs.Category, Amount: cs.Amount, Color: cs.Color,
+			CategoryID: cs.CategoryID, Category: cs.Category, Amount: cs.Amount, Color: cs.Color,
 		})
 	}
 	item := monthlySumCacheItem{
@@ -791,7 +796,7 @@ func monthlySumCacheToModel(item *monthlySumCacheItem) *model.MonthData {
 	}
 	for _, c := range item.ByCategory {
 		data.ByCategory = append(data.ByCategory, model.CategorySummary{
-			Category: c.Category, Amount: c.Amount, Color: c.Color,
+			CategoryID: c.CategoryID, Category: c.Category, Amount: c.Amount, Color: c.Color,
 		})
 	}
 	return data

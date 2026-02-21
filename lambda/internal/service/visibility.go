@@ -36,7 +36,7 @@ func FilterExpensesForUser(expenses []model.Expense, userEmail string) []model.E
 				ID:         e.ID,
 				Date:       e.Date,
 				Payer:      e.Payer,
-				Category:   "個人出費",
+				Category:   "",
 				Amount:     e.Amount,
 				Visibility: e.Visibility,
 				CreatedBy:  e.CreatedBy,

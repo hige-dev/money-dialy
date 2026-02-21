@@ -23,8 +23,9 @@ func RefreshMonthlySummaryCache(ctx context.Context, client *dynamo.Client, year
 		return err
 	}
 	allCategories := filterExpenseCategories(aggregateByCategory(expenses, yearMonth, "", catMaps), catMaps.IsExpense)
-	total := sumCategories(allCategories)
-	byCategory := filterBreakdownCategories(allCategories, catMaps.ExcludeFromBreakdown)
+	summaryCategories := filterSummaryCategories(allCategories, catMaps.ExcludeFromSummary)
+	total := sumCategories(summaryCategories)
+	byCategory := filterBreakdownCategories(summaryCategories, catMaps.ExcludeFromBreakdown)
 	return client.PutMonthlySummaryCache(ctx, &model.MonthData{
 		Month: yearMonth, Total: total, ByCategory: byCategory,
 	})
@@ -136,12 +137,13 @@ func computeMonthData(ctx context.Context, client *dynamo.Client, yearMonth stri
 	}
 	filtered := FilterExpensesForSummary(expenses, userEmail)
 	allCategories := filterExpenseCategories(aggregateByCategory(filtered, yearMonth, payer, catMaps), catMaps.IsExpense)
-	total := sumCategories(allCategories)
-	byCategory := filterBreakdownCategories(allCategories, catMaps.ExcludeFromBreakdown)
+	summaryCategories := filterSummaryCategories(allCategories, catMaps.ExcludeFromSummary)
+	total := sumCategories(summaryCategories)
+	byCategory := filterBreakdownCategories(summaryCategories, catMaps.ExcludeFromBreakdown)
 	return &model.MonthData{Month: yearMonth, Total: total, ByCategory: byCategory}, nil
 }
 
-// aggregateByCategory は指定月(+支払元)の支出をカテゴリ別に集計する（カテゴリマスタの sortOrder 順）
+// aggregateByCategory は指定月(+支払元)の支出をカテゴリID別に集計する（カテゴリマスタの sortOrder 順）
 func aggregateByCategory(expenses []model.Expense, month string, payer string, catMaps *CategoryMaps) []model.CategorySummary {
 	totals := make(map[string]int)
 	for _, e := range expenses {
@@ -154,41 +156,57 @@ func aggregateByCategory(expenses []model.Expense, month string, payer string, c
 	}
 
 	var result []model.CategorySummary
-	for cat, amount := range totals {
-		color := catMaps.Color[cat]
+	for catID, amount := range totals {
+		color := catMaps.Color[catID]
 		if color == "" {
 			color = "#AEB6BF"
 		}
+		name := catMaps.Name[catID]
+		if name == "" {
+			name = catID
+		}
 		result = append(result, model.CategorySummary{
-			Category: cat,
-			Amount:   amount,
-			Color:    color,
+			CategoryID: catID,
+			Category:   name,
+			Amount:     amount,
+			Color:      color,
 		})
 	}
 
 	sort.Slice(result, func(i, j int) bool {
-		return catMaps.SortOrder[result[i].Category] < catMaps.SortOrder[result[j].Category]
+		return catMaps.SortOrder[result[i].CategoryID] < catMaps.SortOrder[result[j].CategoryID]
 	})
 
 	return result
 }
 
-// filterExpenseCategories は isExpense=true のカテゴリのみ返す
+// filterExpenseCategories は isExpense=true のカテゴリのみ返す（キーはカテゴリID）
 func filterExpenseCategories(categories []model.CategorySummary, isExpenseMap map[string]bool) []model.CategorySummary {
 	var result []model.CategorySummary
 	for _, c := range categories {
-		if isExp, ok := isExpenseMap[c.Category]; !ok || isExp {
+		if isExp, ok := isExpenseMap[c.CategoryID]; !ok || isExp {
 			result = append(result, c)
 		}
 	}
 	return result
 }
 
-// filterBreakdownCategories は excludeFromBreakdown=true のカテゴリを除外する
+// filterSummaryCategories は excludeFromSummary=true のカテゴリを集計から完全除外する（キーはカテゴリID）
+func filterSummaryCategories(categories []model.CategorySummary, excludeMap map[string]bool) []model.CategorySummary {
+	var result []model.CategorySummary
+	for _, c := range categories {
+		if !excludeMap[c.CategoryID] {
+			result = append(result, c)
+		}
+	}
+	return result
+}
+
+// filterBreakdownCategories は excludeFromBreakdown=true のカテゴリを除外する（キーはカテゴリID）
 func filterBreakdownCategories(categories []model.CategorySummary, excludeMap map[string]bool) []model.CategorySummary {
 	var result []model.CategorySummary
 	for _, c := range categories {
-		if !excludeMap[c.Category] {
+		if !excludeMap[c.CategoryID] {
 			result = append(result, c)
 		}
 	}

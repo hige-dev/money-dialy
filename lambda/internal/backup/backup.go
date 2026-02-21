@@ -14,12 +14,17 @@ import (
 
 const expensesSheet = "expenses"
 
-func expenseToRow(e *model.Expense) []interface{} {
+// expenseToRow はスプレッドシート行に変換する。catNameMap でカテゴリID→名前変換を行う。
+func expenseToRow(e *model.Expense, catNameMap map[string]string) []interface{} {
+	categoryName := catNameMap[e.Category]
+	if categoryName == "" {
+		categoryName = e.Category
+	}
 	return []interface{}{
 		e.ID,
 		e.Date,
 		e.Payer,
-		e.Category,
+		categoryName,
 		strconv.Itoa(e.Amount),
 		e.Memo,
 		e.Place,
@@ -37,6 +42,16 @@ func SyncExpenses(ctx context.Context, dynamoClient *dynamo.Client) error {
 		return fmt.Errorf("DynamoDB scan failed: %w", err)
 	}
 
+	// カテゴリID→名前マップを構築
+	categories, err := dynamoClient.GetCategories(ctx)
+	if err != nil {
+		return fmt.Errorf("categories fetch failed: %w", err)
+	}
+	catNameMap := make(map[string]string, len(categories))
+	for _, c := range categories {
+		catNameMap[c.ID] = c.Name
+	}
+
 	sort.Slice(expenses, func(i, j int) bool {
 		return expenses[i].Date > expenses[j].Date
 	})
@@ -52,7 +67,7 @@ func SyncExpenses(ctx context.Context, dynamoClient *dynamo.Client) error {
 
 	rows := make([][]interface{}, len(expenses))
 	for i := range expenses {
-		rows[i] = expenseToRow(&expenses[i])
+		rows[i] = expenseToRow(&expenses[i], catNameMap)
 	}
 
 	if err := sheetsClient.BatchUpdateRows(ctx, expensesSheet, rows); err != nil {

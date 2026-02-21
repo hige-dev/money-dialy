@@ -67,8 +67,8 @@ func TestFilterExpensesForUser(t *testing.T) {
 		t.Errorf("public expense should be unchanged: %+v", result[0])
 	}
 
-	// 他人の summary → カテゴリ="個人出費"、場所・メモ空
-	if result[1].ID != "2" || result[1].Category != "個人出費" || result[1].Amount != 2000 {
+	// 他人の summary → カテゴリ=""（空文字）、場所・メモ空
+	if result[1].ID != "2" || result[1].Category != "" || result[1].Amount != 2000 {
 		t.Errorf("summary expense should be masked: %+v", result[1])
 	}
 	if result[1].Memo != "" || result[1].Place != "" {

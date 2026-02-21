@@ -52,6 +52,7 @@ type Category struct {
 	IsActive             bool   `json:"isActive"`
 	IsExpense            bool   `json:"isExpense"`
 	ExcludeFromBreakdown bool   `json:"excludeFromBreakdown"` // 内訳から除外（総額には含む）
+	ExcludeFromSummary   bool   `json:"excludeFromSummary"`   // 集計から完全除外（Balanceのみ表示）
 }
 
 // PayerBalance は支払元の残額情報（月別）
@@ -79,9 +80,10 @@ type AuthUser struct {
 
 // CategorySummary はカテゴリ別集計
 type CategorySummary struct {
-	Category string `json:"category"`
-	Amount   int    `json:"amount"`
-	Color    string `json:"color"`
+	CategoryID string `json:"categoryId"`
+	Category   string `json:"category"`
+	Amount     int    `json:"amount"`
+	Color      string `json:"color"`
 }
 
 // MonthComparison は月比較データ
@@ -155,6 +157,7 @@ type CategoryInput struct {
 	IsActive             bool   `json:"isActive"`
 	IsExpense            bool   `json:"isExpense"`
 	ExcludeFromBreakdown bool   `json:"excludeFromBreakdown"`
+	ExcludeFromSummary   bool   `json:"excludeFromSummary"`
 }
 
 // PlaceInput は場所登録・更新のリクエスト

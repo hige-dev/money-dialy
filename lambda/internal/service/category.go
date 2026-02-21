@@ -33,6 +33,7 @@ func CreateCategory(ctx context.Context, client *dynamo.Client, input *model.Cat
 		IsActive:             input.IsActive,
 		IsExpense:            input.IsExpense,
 		ExcludeFromBreakdown: input.ExcludeFromBreakdown,
+		ExcludeFromSummary:   input.ExcludeFromSummary,
 	}
 	if err := client.PutCategory(ctx, cat); err != nil {
 		return nil, err
@@ -53,6 +54,7 @@ func UpdateCategory(ctx context.Context, client *dynamo.Client, id string, input
 		IsActive:             input.IsActive,
 		IsExpense:            input.IsExpense,
 		ExcludeFromBreakdown: input.ExcludeFromBreakdown,
+		ExcludeFromSummary:   input.ExcludeFromSummary,
 	}
 	if err := client.PutCategory(ctx, cat); err != nil {
 		return nil, err
@@ -65,15 +67,17 @@ func DeleteCategory(ctx context.Context, client *dynamo.Client, id string) error
 	return client.DeleteCategory(ctx, id)
 }
 
-// CategoryMaps はカテゴリの各種マップをまとめて保持する
+// CategoryMaps はカテゴリの各種マップをまとめて保持する（キーはカテゴリID）
 type CategoryMaps struct {
-	Color                map[string]string // カテゴリ名→色
-	IsExpense            map[string]bool   // カテゴリ名→isExpense
-	SortOrder            map[string]int    // カテゴリ名→sortOrder
-	ExcludeFromBreakdown map[string]bool   // カテゴリ名→内訳から除外
+	Name                 map[string]string // カテゴリID→名前
+	Color                map[string]string // カテゴリID→色
+	IsExpense            map[string]bool   // カテゴリID→isExpense
+	SortOrder            map[string]int    // カテゴリID→sortOrder
+	ExcludeFromBreakdown map[string]bool   // カテゴリID→内訳から除外
+	ExcludeFromSummary   map[string]bool   // カテゴリID→集計から完全除外
 }
 
-// GetCategoryMaps はカテゴリの色・isExpense・sortOrder マップをまとめて返す
+// GetCategoryMaps はカテゴリの各種マップをまとめて返す（キーはカテゴリID）
 func GetCategoryMaps(ctx context.Context, client *dynamo.Client) (*CategoryMaps, error) {
 	categories, err := client.GetCategories(ctx)
 	if err != nil {
@@ -81,16 +85,20 @@ func GetCategoryMaps(ctx context.Context, client *dynamo.Client) (*CategoryMaps,
 	}
 
 	cm := &CategoryMaps{
+		Name:                 make(map[string]string, len(categories)),
 		Color:                make(map[string]string, len(categories)),
 		IsExpense:            make(map[string]bool, len(categories)),
 		SortOrder:            make(map[string]int, len(categories)),
 		ExcludeFromBreakdown: make(map[string]bool, len(categories)),
+		ExcludeFromSummary:   make(map[string]bool, len(categories)),
 	}
 	for _, c := range categories {
-		cm.Color[c.Name] = c.Color
-		cm.IsExpense[c.Name] = c.IsExpense
-		cm.SortOrder[c.Name] = c.SortOrder
-		cm.ExcludeFromBreakdown[c.Name] = c.ExcludeFromBreakdown
+		cm.Name[c.ID] = c.Name
+		cm.Color[c.ID] = c.Color
+		cm.IsExpense[c.ID] = c.IsExpense
+		cm.SortOrder[c.ID] = c.SortOrder
+		cm.ExcludeFromBreakdown[c.ID] = c.ExcludeFromBreakdown
+		cm.ExcludeFromSummary[c.ID] = c.ExcludeFromSummary
 	}
 	return cm, nil
 }

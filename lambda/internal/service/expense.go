@@ -211,9 +211,9 @@ func GetPayerBalance(ctx context.Context, client *dynamo.Client, payerName strin
 
 	// チャージ対象カテゴリを特定（isExpense=false かつ「収入」以外）
 	chargeCategories := make(map[string]bool)
-	for name, isExp := range catMaps.IsExpense {
-		if !isExp && name != "収入" {
-			chargeCategories[name] = true
+	for id, isExp := range catMaps.IsExpense {
+		if !isExp && catMaps.Name[id] != "収入" {
+			chargeCategories[id] = true
 		}
 	}
 
