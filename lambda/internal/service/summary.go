@@ -22,8 +22,9 @@ func RefreshMonthlySummaryCache(ctx context.Context, client *dynamo.Client, year
 	if err != nil {
 		return err
 	}
-	byCategory := filterExpenseCategories(aggregateByCategory(expenses, yearMonth, "", catMaps), catMaps.IsExpense)
-	total := sumCategories(byCategory)
+	allCategories := filterExpenseCategories(aggregateByCategory(expenses, yearMonth, "", catMaps), catMaps.IsExpense)
+	total := sumCategories(allCategories)
+	byCategory := filterBreakdownCategories(allCategories, catMaps.ExcludeFromBreakdown)
 	return client.PutMonthlySummaryCache(ctx, &model.MonthData{
 		Month: yearMonth, Total: total, ByCategory: byCategory,
 	})
@@ -127,14 +128,16 @@ func getMonthDataMap(ctx context.Context, client *dynamo.Client, months []string
 
 // computeMonthData は月別 GSI クエリから集計を計算する。
 // 他人の private 支出は除外する。
+// total は excludeFromBreakdown を含む全支出カテゴリの合計、byCategory は除外後の内訳。
 func computeMonthData(ctx context.Context, client *dynamo.Client, yearMonth string, payer string, catMaps *CategoryMaps, userEmail string) (*model.MonthData, error) {
 	expenses, err := client.QueryExpensesByMonth(ctx, yearMonth)
 	if err != nil {
 		return nil, err
 	}
 	filtered := FilterExpensesForSummary(expenses, userEmail)
-	byCategory := filterExpenseCategories(aggregateByCategory(filtered, yearMonth, payer, catMaps), catMaps.IsExpense)
-	total := sumCategories(byCategory)
+	allCategories := filterExpenseCategories(aggregateByCategory(filtered, yearMonth, payer, catMaps), catMaps.IsExpense)
+	total := sumCategories(allCategories)
+	byCategory := filterBreakdownCategories(allCategories, catMaps.ExcludeFromBreakdown)
 	return &model.MonthData{Month: yearMonth, Total: total, ByCategory: byCategory}, nil
 }
 
@@ -175,6 +178,17 @@ func filterExpenseCategories(categories []model.CategorySummary, isExpenseMap ma
 	var result []model.CategorySummary
 	for _, c := range categories {
 		if isExp, ok := isExpenseMap[c.Category]; !ok || isExp {
+			result = append(result, c)
+		}
+	}
+	return result
+}
+
+// filterBreakdownCategories は excludeFromBreakdown=true のカテゴリを除外する
+func filterBreakdownCategories(categories []model.CategorySummary, excludeMap map[string]bool) []model.CategorySummary {
+	var result []model.CategorySummary
+	for _, c := range categories {
+		if !excludeMap[c.Category] {
 			result = append(result, c)
 		}
 	}

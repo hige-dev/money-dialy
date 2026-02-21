@@ -107,13 +107,14 @@ func expenseFromModel(e *model.Expense) expenseItem {
 
 // categoryItem は DynamoDB master テーブルのカテゴリアイテム
 type categoryItem struct {
-	Type      string `dynamodbav:"type"`
-	ID        string `dynamodbav:"id"`
-	Name      string `dynamodbav:"name"`
-	SortOrder int    `dynamodbav:"sortOrder"`
-	Color     string `dynamodbav:"color"`
-	IsActive  bool   `dynamodbav:"isActive"`
-	IsExpense bool   `dynamodbav:"isExpense"`
+	Type                 string `dynamodbav:"type"`
+	ID                   string `dynamodbav:"id"`
+	Name                 string `dynamodbav:"name"`
+	SortOrder            int    `dynamodbav:"sortOrder"`
+	Color                string `dynamodbav:"color"`
+	IsActive             bool   `dynamodbav:"isActive"`
+	IsExpense            bool   `dynamodbav:"isExpense"`
+	ExcludeFromBreakdown bool   `dynamodbav:"excludeFromBreakdown"`
 }
 
 // placeItem は DynamoDB master テーブルの場所アイテム
@@ -285,12 +286,13 @@ func (c *Client) GetCategories(ctx context.Context) ([]model.Category, error) {
 	for _, item := range dbItems {
 		if item.IsActive {
 			categories = append(categories, model.Category{
-				ID:        item.ID,
-				Name:      item.Name,
-				SortOrder: item.SortOrder,
-				Color:     item.Color,
-				IsActive:  item.IsActive,
-				IsExpense: item.IsExpense,
+				ID:                   item.ID,
+				Name:                 item.Name,
+				SortOrder:            item.SortOrder,
+				Color:                item.Color,
+				IsActive:             item.IsActive,
+				IsExpense:            item.IsExpense,
+				ExcludeFromBreakdown: item.ExcludeFromBreakdown,
 			})
 		}
 	}
@@ -370,6 +372,7 @@ func (c *Client) GetAllCategories(ctx context.Context) ([]model.Category, error)
 		categories[i] = model.Category{
 			ID: item.ID, Name: item.Name, SortOrder: item.SortOrder,
 			Color: item.Color, IsActive: item.IsActive, IsExpense: item.IsExpense,
+			ExcludeFromBreakdown: item.ExcludeFromBreakdown,
 		}
 	}
 	sort.Slice(categories, func(i, j int) bool {
@@ -383,6 +386,7 @@ func (c *Client) PutCategory(ctx context.Context, cat *model.Category) error {
 	item := categoryItem{
 		Type: "category", ID: cat.ID, Name: cat.Name, SortOrder: cat.SortOrder,
 		Color: cat.Color, IsActive: cat.IsActive, IsExpense: cat.IsExpense,
+		ExcludeFromBreakdown: cat.ExcludeFromBreakdown,
 	}
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {

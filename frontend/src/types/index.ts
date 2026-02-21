@@ -52,6 +52,7 @@ export interface Category {
   color: string;
   isActive: boolean;
   isExpense: boolean;
+  excludeFromBreakdown: boolean;
 }
 
 // 支払元残額（月別）
@@ -140,6 +141,7 @@ export interface CategoryInput {
   color: string;
   isActive: boolean;
   isExpense: boolean;
+  excludeFromBreakdown: boolean;
 }
 
 // 場所入力型

@@ -45,12 +45,13 @@ type Payer struct {
 
 // Category はカテゴリマスタ
 type Category struct {
-	ID        string `json:"id"`
-	Name      string `json:"name"`
-	SortOrder int    `json:"sortOrder"`
-	Color     string `json:"color"`
-	IsActive  bool   `json:"isActive"`
-	IsExpense bool   `json:"isExpense"`
+	ID                   string `json:"id"`
+	Name                 string `json:"name"`
+	SortOrder            int    `json:"sortOrder"`
+	Color                string `json:"color"`
+	IsActive             bool   `json:"isActive"`
+	IsExpense            bool   `json:"isExpense"`
+	ExcludeFromBreakdown bool   `json:"excludeFromBreakdown"` // 内訳から除外（総額には含む）
 }
 
 // PayerBalance は支払元の残額情報（月別）
@@ -148,11 +149,12 @@ type RecurringExpenseInput struct {
 
 // CategoryInput はカテゴリ登録・更新のリクエスト
 type CategoryInput struct {
-	Name      string `json:"name"`
-	SortOrder int    `json:"sortOrder"`
-	Color     string `json:"color"`
-	IsActive  bool   `json:"isActive"`
-	IsExpense bool   `json:"isExpense"`
+	Name                 string `json:"name"`
+	SortOrder            int    `json:"sortOrder"`
+	Color                string `json:"color"`
+	IsActive             bool   `json:"isActive"`
+	IsExpense            bool   `json:"isExpense"`
+	ExcludeFromBreakdown bool   `json:"excludeFromBreakdown"`
 }
 
 // PlaceInput は場所登録・更新のリクエスト

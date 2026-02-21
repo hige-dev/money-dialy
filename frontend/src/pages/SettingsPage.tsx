@@ -28,6 +28,7 @@ function CategoryModal({
   const [color, setColor] = useState(initial?.color || '#3b82f6');
   const [isActive, setIsActive] = useState(initial?.isActive ?? true);
   const [isExpense, setIsExpense] = useState(initial?.isExpense ?? true);
+  const [excludeFromBreakdown, setExcludeFromBreakdown] = useState(initial?.excludeFromBreakdown ?? false);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -71,6 +72,13 @@ function CategoryModal({
 
         <div className="modal-field">
           <label className="recurring-active-label">
+            <input type="checkbox" checked={excludeFromBreakdown} onChange={(e) => setExcludeFromBreakdown(e.target.checked)} />
+            内訳から除外（総額には含む）
+          </label>
+        </div>
+
+        <div className="modal-field">
+          <label className="recurring-active-label">
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
             有効
           </label>
@@ -79,7 +87,7 @@ function CategoryModal({
         <div className="modal-actions">
           <button
             className="modal-btn modal-btn-primary"
-            onClick={() => onSave({ name, sortOrder: Number(sortOrder), color, isActive, isExpense })}
+            onClick={() => onSave({ name, sortOrder: Number(sortOrder), color, isActive, isExpense, excludeFromBreakdown })}
             disabled={!name.trim()}
           >
             保存
