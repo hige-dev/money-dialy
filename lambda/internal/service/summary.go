@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"fmt"
-	"log"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,8 +29,9 @@ func RefreshMonthlySummaryCache(ctx context.Context, client *dynamo.Client, year
 	})
 }
 
-// GetMonthlySummary は指定月の集計データを返す（payer指定時はフィルタ）
-func GetMonthlySummary(ctx context.Context, client *dynamo.Client, month string, payer string) (*model.MonthlySummary, error) {
+// GetMonthlySummary は指定月の集計データを返す（payer指定時はフィルタ）。
+// userEmail に応じて visibility フィルタを適用する。
+func GetMonthlySummary(ctx context.Context, client *dynamo.Client, month string, payer string, userEmail string) (*model.MonthlySummary, error) {
 	catMaps, err := GetCategoryMaps(ctx, client)
 	if err != nil {
 		return nil, err
@@ -40,7 +40,7 @@ func GetMonthlySummary(ctx context.Context, client *dynamo.Client, month string,
 	prevMonth := previousMonth(month)
 	prevYearMonth := previousYearMonth(month)
 
-	dataMap, err := getMonthDataMap(ctx, client, []string{month, prevMonth, prevYearMonth}, payer, catMaps)
+	dataMap, err := getMonthDataMap(ctx, client, []string{month, prevMonth, prevYearMonth}, payer, catMaps, userEmail)
 	if err != nil {
 		return nil, err
 	}
@@ -64,8 +64,9 @@ func GetMonthlySummary(ctx context.Context, client *dynamo.Client, month string,
 	return summary, nil
 }
 
-// GetYearlySummary は指定月を最新とした直近13ヶ月分の集計データを返す（payer指定時はフィルタ）
-func GetYearlySummary(ctx context.Context, client *dynamo.Client, month string, payer string) (*model.YearlySummary, error) {
+// GetYearlySummary は指定月を最新とした直近13ヶ月分の集計データを返す（payer指定時はフィルタ）。
+// userEmail に応じて visibility フィルタを適用する。
+func GetYearlySummary(ctx context.Context, client *dynamo.Client, month string, payer string, userEmail string) (*model.YearlySummary, error) {
 	parts := strings.Split(month, "-")
 	if len(parts) != 2 {
 		return nil, fmt.Errorf("month の形式が不正です: %s", month)
@@ -85,7 +86,7 @@ func GetYearlySummary(ctx context.Context, client *dynamo.Client, month string, 
 		return nil, err
 	}
 
-	dataMap, err := getMonthDataMap(ctx, client, months, payer, catMaps)
+	dataMap, err := getMonthDataMap(ctx, client, months, payer, catMaps, userEmail)
 	if err != nil {
 		return nil, err
 	}
@@ -102,42 +103,16 @@ func GetYearlySummary(ctx context.Context, client *dynamo.Client, month string, 
 }
 
 // getMonthDataMap は複数月の集計データを取得する。
-// payer="" の場合はキャッシュを利用、payer!="" の場合は月別クエリで計算する。
-func getMonthDataMap(ctx context.Context, client *dynamo.Client, months []string, payer string, catMaps *CategoryMaps) (map[string]*model.MonthData, error) {
+// visibility フィルタがユーザー依存のため、常に月別クエリで計算する。
+func getMonthDataMap(ctx context.Context, client *dynamo.Client, months []string, payer string, catMaps *CategoryMaps, userEmail string) (map[string]*model.MonthData, error) {
 	result := make(map[string]*model.MonthData)
 
-	if payer == "" {
-		// キャッシュから一括取得
-		cached, err := client.BatchGetMonthlySummaryCache(ctx, months)
+	for _, ym := range months {
+		data, err := computeMonthData(ctx, client, ym, payer, catMaps, userEmail)
 		if err != nil {
 			return nil, err
 		}
-		for ym, data := range cached {
-			result[ym] = data
-		}
-		// キャッシュミスした月は月別クエリで計算して保存
-		for _, ym := range months {
-			if _, ok := result[ym]; ok {
-				continue
-			}
-			data, err := computeMonthData(ctx, client, ym, "", catMaps)
-			if err != nil {
-				return nil, err
-			}
-			if err := client.PutMonthlySummaryCache(ctx, data); err != nil {
-				log.Printf("monthlySummary cache save failed for %s: %v", ym, err)
-			}
-			result[ym] = data
-		}
-	} else {
-		// payer 付きは月別クエリで都度計算
-		for _, ym := range months {
-			data, err := computeMonthData(ctx, client, ym, payer, catMaps)
-			if err != nil {
-				return nil, err
-			}
-			result[ym] = data
-		}
+		result[ym] = data
 	}
 
 	// データがない月は空の MonthData で埋める
@@ -150,13 +125,15 @@ func getMonthDataMap(ctx context.Context, client *dynamo.Client, months []string
 	return result, nil
 }
 
-// computeMonthData は月別 GSI クエリから集計を計算する
-func computeMonthData(ctx context.Context, client *dynamo.Client, yearMonth string, payer string, catMaps *CategoryMaps) (*model.MonthData, error) {
+// computeMonthData は月別 GSI クエリから集計を計算する。
+// 他人の private 支出は除外する。
+func computeMonthData(ctx context.Context, client *dynamo.Client, yearMonth string, payer string, catMaps *CategoryMaps, userEmail string) (*model.MonthData, error) {
 	expenses, err := client.QueryExpensesByMonth(ctx, yearMonth)
 	if err != nil {
 		return nil, err
 	}
-	byCategory := filterExpenseCategories(aggregateByCategory(expenses, yearMonth, payer, catMaps), catMaps.IsExpense)
+	filtered := FilterExpensesForSummary(expenses, userEmail)
+	byCategory := filterExpenseCategories(aggregateByCategory(filtered, yearMonth, payer, catMaps), catMaps.IsExpense)
 	total := sumCategories(byCategory)
 	return &model.MonthData{Month: yearMonth, Total: total, ByCategory: byCategory}, nil
 }

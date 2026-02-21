@@ -247,7 +247,7 @@ export function SummaryPage() {
     });
   }, [expandedChart, stackedBarData]);
 
-  if (loading) {
+  if (loading && !summary) {
     return (
       <>
         <MonthPicker value={date} onChange={setDate} mode="month" />

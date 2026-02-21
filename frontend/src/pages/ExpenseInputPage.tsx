@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { MonthPicker } from '../components/MonthPicker';
-import { categoriesApi, expensesApi, placesApi, payersApi, recurringApi } from '../services/api';
-import type { Category, Place, Payer, RecurringExpense } from '../types';
+import { categoriesApi, expensesApi, placesApi, payersApi } from '../services/api';
+import type { Category, Place, Payer, Visibility } from '../types';
 
 function todayString(): string {
   const d = new Date();
@@ -13,13 +13,13 @@ export function ExpenseInputPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
   const [payers, setPayers] = useState<Payer[]>([]);
-  const [templates, setTemplates] = useState<RecurringExpense[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedPayer, setSelectedPayer] = useState('');
   const [selectedPlace, setSelectedPlace] = useState('');
   const [customPlace, setCustomPlace] = useState('');
   const [amount, setAmount] = useState('');
   const [memo, setMemo] = useState('');
+  const [visibility, setVisibility] = useState<Visibility>('public');
   const [loading, setLoading] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -29,15 +29,6 @@ export function ExpenseInputPage() {
       categoriesApi.getAll().then(setCategories),
       placesApi.getAll().then(setPlaces),
       payersApi.getAll().then(setPayers),
-      recurringApi.getAll().then((t) => {
-        const currentMonth = todayString().slice(0, 7);
-        setTemplates(t.filter((r) => {
-          if (!r.isActive) return false;
-          if (r.startMonth && currentMonth < r.startMonth) return false;
-          if (r.endMonth && currentMonth > r.endMonth) return false;
-          return true;
-        }));
-      }),
     ]).catch((e) => {
       console.error(e);
       setLoadError(String(e));
@@ -66,6 +57,7 @@ export function ExpenseInputPage() {
         amount: numAmount,
         memo,
         place: selectedPlace === '__other__' ? customPlace : selectedPlace,
+        visibility,
       });
       setToast(`${selectedCategory} \u00a5${numAmount.toLocaleString()} を登録しました`);
       setAmount('');
@@ -84,26 +76,6 @@ export function ExpenseInputPage() {
       {loadError && (
         <div style={{ padding: '12px 16px', background: '#fef2f2', color: '#dc2626', fontSize: '0.8rem', wordBreak: 'break-all' }}>
           {loadError}
-        </div>
-      )}
-      {templates.length > 0 && (
-        <div className="template-chips">
-          {templates.map((t) => (
-            <button
-              key={t.id}
-              className="template-chip"
-              onClick={() => {
-                setSelectedCategory(t.category);
-                setSelectedPayer(t.payer);
-                setSelectedPlace(t.place);
-                setCustomPlace('');
-                setAmount(String(t.amount));
-                setMemo(t.memo);
-              }}
-            >
-              {t.category} &yen;{t.amount.toLocaleString()}
-            </button>
-          ))}
         </div>
       )}
       <div className="input-form">
@@ -162,6 +134,14 @@ export function ExpenseInputPage() {
             value={memo}
             onChange={(e) => setMemo(e.target.value)}
           />
+        </div>
+        <div className="input-field">
+          <label>公開設定</label>
+          <select value={visibility} onChange={(e) => setVisibility(e.target.value as Visibility)}>
+            <option value="public">全員に公開</option>
+            <option value="summary">金額のみ公開</option>
+            <option value="private">自分のみ</option>
+          </select>
         </div>
         <button
           className="input-submit-btn"

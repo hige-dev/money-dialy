@@ -54,31 +54,33 @@ func NewClient(ctx context.Context) (*Client, error) {
 
 // expenseItem は DynamoDB expenses テーブルのアイテム
 type expenseItem struct {
-	ID        string `dynamodbav:"id"`
-	YearMonth string `dynamodbav:"yearMonth"`
-	Date      string `dynamodbav:"date"`
-	Payer     string `dynamodbav:"payer"`
-	Category  string `dynamodbav:"category"`
-	Amount    int    `dynamodbav:"amount"`
-	Memo      string `dynamodbav:"memo"`
-	Place     string `dynamodbav:"place"`
-	CreatedBy string `dynamodbav:"createdBy"`
-	CreatedAt string `dynamodbav:"createdAt"`
-	UpdatedAt string `dynamodbav:"updatedAt"`
+	ID         string `dynamodbav:"id"`
+	YearMonth  string `dynamodbav:"yearMonth"`
+	Date       string `dynamodbav:"date"`
+	Payer      string `dynamodbav:"payer"`
+	Category   string `dynamodbav:"category"`
+	Amount     int    `dynamodbav:"amount"`
+	Memo       string `dynamodbav:"memo"`
+	Place      string `dynamodbav:"place"`
+	Visibility string `dynamodbav:"visibility,omitempty"`
+	CreatedBy  string `dynamodbav:"createdBy"`
+	CreatedAt  string `dynamodbav:"createdAt"`
+	UpdatedAt  string `dynamodbav:"updatedAt"`
 }
 
 func (item *expenseItem) toModel() model.Expense {
 	return model.Expense{
-		ID:        item.ID,
-		Date:      item.Date,
-		Payer:     item.Payer,
-		Category:  item.Category,
-		Amount:    item.Amount,
-		Memo:      item.Memo,
-		Place:     item.Place,
-		CreatedBy: item.CreatedBy,
-		CreatedAt: item.CreatedAt,
-		UpdatedAt: item.UpdatedAt,
+		ID:         item.ID,
+		Date:       item.Date,
+		Payer:      item.Payer,
+		Category:   item.Category,
+		Amount:     item.Amount,
+		Memo:       item.Memo,
+		Place:      item.Place,
+		Visibility: item.Visibility,
+		CreatedBy:  item.CreatedBy,
+		CreatedAt:  item.CreatedAt,
+		UpdatedAt:  item.UpdatedAt,
 	}
 }
 
@@ -88,17 +90,18 @@ func expenseFromModel(e *model.Expense) expenseItem {
 		ym = e.Date[:7]
 	}
 	return expenseItem{
-		ID:        e.ID,
-		YearMonth: ym,
-		Date:      e.Date,
-		Payer:     e.Payer,
-		Category:  e.Category,
-		Amount:    e.Amount,
-		Memo:      e.Memo,
-		Place:     e.Place,
-		CreatedBy: e.CreatedBy,
-		CreatedAt: e.CreatedAt,
-		UpdatedAt: e.UpdatedAt,
+		ID:         e.ID,
+		YearMonth:  ym,
+		Date:       e.Date,
+		Payer:      e.Payer,
+		Category:   e.Category,
+		Amount:     e.Amount,
+		Memo:       e.Memo,
+		Place:      e.Place,
+		Visibility: e.Visibility,
+		CreatedBy:  e.CreatedBy,
+		CreatedAt:  e.CreatedAt,
+		UpdatedAt:  e.UpdatedAt,
 	}
 }
 

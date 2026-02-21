@@ -26,6 +26,7 @@ func expenseToRow(e *model.Expense) []interface{} {
 		e.CreatedBy,
 		e.CreatedAt,
 		e.UpdatedAt,
+		e.Visibility,
 	}
 }
 

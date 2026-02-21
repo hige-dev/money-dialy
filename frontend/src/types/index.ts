@@ -1,3 +1,6 @@
+// 公開レベル型
+export type Visibility = 'public' | 'summary' | 'private';
+
 // 支出データ型
 export interface Expense {
   id: string;
@@ -7,6 +10,7 @@ export interface Expense {
   amount: number;
   memo: string;
   place: string;
+  visibility: string;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -20,6 +24,7 @@ export interface ExpenseInput {
   amount: number;
   memo: string;
   place: string;
+  visibility?: Visibility;
 }
 
 // 支払元マスタ型

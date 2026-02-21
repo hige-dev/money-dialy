@@ -2,7 +2,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { MonthPicker } from '../components/MonthPicker';
 import { expensesApi, categoriesApi, placesApi, payersApi } from '../services/api';
-import type { Expense, Category, Place, Payer } from '../types';
+import type { Expense, Category, Place, Payer, Visibility } from '../types';
+import { useAuth } from '../contexts/AuthContext';
 
 function todayString(): string {
   const d = new Date();
@@ -39,7 +40,7 @@ interface EditModalProps {
   categories: Category[];
   places: Place[];
   payers: Payer[];
-  onSave: (id: string, data: { date: string; payer: string; category: string; amount: number; memo: string; place: string }) => void;
+  onSave: (id: string, data: { date: string; payer: string; category: string; amount: number; memo: string; place: string; visibility?: Visibility }) => void;
   onDelete: (id: string) => void;
   onClose: () => void;
 }
@@ -51,6 +52,7 @@ function EditModal({ expense, categories, places, payers, onSave, onDelete, onCl
   const [amount, setAmount] = useState(String(expense.amount));
   const [place, setPlace] = useState(expense.place);
   const [memo, setMemo] = useState(expense.memo);
+  const [visibility, setVisibility] = useState<Visibility>((expense.visibility || 'public') as Visibility);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -97,6 +99,14 @@ function EditModal({ expense, categories, places, payers, onSave, onDelete, onCl
           <label>メモ</label>
           <input type="text" value={memo} onChange={(e) => setMemo(e.target.value)} />
         </div>
+        <div className="modal-field">
+          <label>公開設定</label>
+          <select value={visibility} onChange={(e) => setVisibility(e.target.value as Visibility)}>
+            <option value="public">全員に公開</option>
+            <option value="summary">金額のみ公開</option>
+            <option value="private">自分のみ</option>
+          </select>
+        </div>
         <div className="modal-actions">
           <button
             className="modal-btn modal-btn-danger"
@@ -106,7 +116,7 @@ function EditModal({ expense, categories, places, payers, onSave, onDelete, onCl
           </button>
           <button
             className="modal-btn modal-btn-primary"
-            onClick={() => onSave(expense.id, { date, payer, category, amount: Number(amount), memo, place })}
+            onClick={() => onSave(expense.id, { date, payer, category, amount: Number(amount), memo, place, visibility })}
           >
             保存
           </button>
@@ -117,6 +127,7 @@ function EditModal({ expense, categories, places, payers, onSave, onDelete, onCl
 }
 
 export function ExpenseListPage() {
+  const { user } = useAuth();
   const [searchParams, setSearchParams] = useSearchParams();
   const initialDate = searchParams.get('date') || todayString();
   const [date, setDate] = useState(initialDate);
@@ -178,7 +189,7 @@ export function ExpenseListPage() {
     }
   }, [toast]);
 
-  const handleSave = async (id: string, data: { date: string; payer: string; category: string; amount: number; memo: string; place: string }) => {
+  const handleSave = async (id: string, data: { date: string; payer: string; category: string; amount: number; memo: string; place: string; visibility?: Visibility }) => {
     try {
       await expensesApi.update(id, data);
       setEditTarget(null);
@@ -222,28 +233,36 @@ export function ExpenseListPage() {
           {[...grouped.entries()].map(([dateKey, items]) => (
             <div key={dateKey} className="expense-date-group" data-date={dateKey}>
               <div className="expense-date-header">{formatDateShort(dateKey)}</div>
-              {items.map((item) => (
-                <div key={item.id} className="expense-item" onClick={() => setEditTarget(item)}>
+              {items.map((item) => {
+                const isMasked = item.category === '個人出費' && item.createdBy !== user?.email;
+                return (
                   <div
-                    className="expense-item-color"
-                    style={{ background: colorMap.get(item.category) || '#AEB6BF' }}
-                  />
-                  <div className="expense-item-body">
-                    <div className="expense-item-top">
-                      <span className="expense-item-category">{item.category}</span>
-                      <span className="expense-item-amount">&yen;{item.amount.toLocaleString()}</span>
-                    </div>
-                    <div className="expense-item-meta">
-                      {item.payer && <span className="expense-item-payer">{item.payer}</span>}
-                      {(item.place || item.memo) && (
-                        <span className="expense-item-memo">
-                          {[item.place, item.memo].filter(Boolean).join(' / ')}
-                        </span>
-                      )}
+                    key={item.id}
+                    className="expense-item"
+                    style={isMasked ? { opacity: 0.5 } : undefined}
+                    onClick={() => { if (!isMasked) setEditTarget(item); }}
+                  >
+                    <div
+                      className="expense-item-color"
+                      style={{ background: isMasked ? '#AEB6BF' : (colorMap.get(item.category) || '#AEB6BF') }}
+                    />
+                    <div className="expense-item-body">
+                      <div className="expense-item-top">
+                        <span className="expense-item-category">{item.category}</span>
+                        <span className="expense-item-amount">&yen;{item.amount.toLocaleString()}</span>
+                      </div>
+                      <div className="expense-item-meta">
+                        {item.payer && <span className="expense-item-payer">{item.payer}</span>}
+                        {!isMasked && (item.place || item.memo) && (
+                          <span className="expense-item-memo">
+                            {[item.place, item.memo].filter(Boolean).join(' / ')}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ))}
         </div>
