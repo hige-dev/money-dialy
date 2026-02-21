@@ -457,6 +457,9 @@ export function SummaryPage() {
         <button className="recurring-link-btn" onClick={() => navigate('/recurring')}>
           テンプレートを管理
         </button>
+        <button className="recurring-link-btn" onClick={() => navigate('/bulk')} style={{ marginTop: 8 }}>
+          一括登録
+        </button>
         <button className="recurring-link-btn" onClick={() => navigate('/settings')} style={{ marginTop: 8 }}>
           設定（マスタ管理）
         </button>

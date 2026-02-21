@@ -156,6 +156,12 @@ func handleAction(ctx context.Context, client *dynamo.Client, req *model.ActionR
 		}
 		return service.UpdateExpense(ctx, client, req.ID, req.Expense)
 
+	case "bulkCreateExpenses":
+		if len(req.Expenses) == 0 {
+			return nil, apperror.New("expenses は必須です")
+		}
+		return service.BulkCreateExpenses(ctx, client, req.Expenses, userEmail)
+
 	case "deleteExpense":
 		if req.ID == "" {
 			return nil, apperror.New("id は必須です")

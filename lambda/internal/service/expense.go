@@ -60,6 +60,60 @@ func CreateExpense(ctx context.Context, client *dynamo.Client, input *model.Expe
 	return &expense, nil
 }
 
+// BulkCreateExpenses は支出を一括登録する。
+// 全件バリデーション後に保存し、影響月のキャッシュをまとめて更新する。
+func BulkCreateExpenses(ctx context.Context, client *dynamo.Client, inputs []model.ExpenseInput, userEmail string) ([]model.Expense, error) {
+	if len(inputs) == 0 {
+		return nil, apperror.New("登録する支出データがありません")
+	}
+
+	// 全件バリデーション
+	for i, input := range inputs {
+		if input.Date == "" || input.Category == "" || input.Amount <= 0 {
+			return nil, apperror.Newf("%d件目: 日付、カテゴリ、金額（0より大きい値）は必須です", i+1)
+		}
+		if !ValidateVisibility(input.Visibility) {
+			return nil, apperror.Newf("%d件目: visibility は public, summary, private のいずれかを指定してください", i+1)
+		}
+	}
+
+	now := time.Now().UTC().Format(time.RFC3339)
+	expenses := make([]model.Expense, 0, len(inputs))
+	affectedMonths := make(map[string]bool)
+
+	for _, input := range inputs {
+		expense := model.Expense{
+			ID:         uuid.New().String(),
+			Date:       input.Date,
+			Payer:      input.Payer,
+			Category:   input.Category,
+			Amount:     input.Amount,
+			Memo:       input.Memo,
+			Place:      input.Place,
+			Visibility: input.Visibility,
+			CreatedBy:  userEmail,
+			CreatedAt:  now,
+			UpdatedAt:  now,
+		}
+		if err := client.PutExpense(ctx, &expense); err != nil {
+			return nil, apperror.Newf("%s の登録に失敗しました: %v", input.Date, err)
+		}
+		expenses = append(expenses, expense)
+		if len(input.Date) >= 7 {
+			affectedMonths[input.Date[:7]] = true
+		}
+	}
+
+	// 影響月のキャッシュをまとめて更新
+	for month := range affectedMonths {
+		if err := RefreshMonthlySummaryCache(ctx, client, month); err != nil {
+			log.Printf("monthlySummary cache refresh failed for %s: %v", month, err)
+		}
+	}
+
+	return expenses, nil
+}
+
 // UpdateExpense は支出を更新する
 func UpdateExpense(ctx context.Context, client *dynamo.Client, id string, input *model.ExpenseInput) (*model.Expense, error) {
 	if input.Date == "" || input.Category == "" || input.Amount <= 0 {

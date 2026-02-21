@@ -187,6 +187,7 @@ type ActionRequest struct {
 	ID      string        `json:"id,omitempty"`
 	Payer   string        `json:"payer,omitempty"`
 	Expense          *ExpenseInput          `json:"expense,omitempty"`
+	Expenses         []ExpenseInput         `json:"expenses,omitempty"`
 	RecurringExpense *RecurringExpenseInput `json:"recurringExpense,omitempty"`
 	Category         *CategoryInput         `json:"category,omitempty"`
 	Place            *PlaceInput            `json:"place,omitempty"`

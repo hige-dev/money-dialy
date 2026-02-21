@@ -11,6 +11,7 @@ import { CalendarPage } from './pages/CalendarPage';
 import { RecurringPage } from './pages/RecurringPage';
 import { SettingsPage } from './pages/SettingsPage';
 import { BalancePage } from './pages/BalancePage';
+import { BulkExpensePage } from './pages/BulkExpensePage';
 import { config } from './config';
 import './App.css';
 
@@ -49,6 +50,7 @@ function AppRoutes() {
             <Route path="/recurring" element={<AdminRoute><RecurringPage /></AdminRoute>} />
             <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
             <Route path="/balance" element={<AdminRoute><BalancePage /></AdminRoute>} />
+            <Route path="/bulk" element={<AdminRoute><BulkExpensePage /></AdminRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>

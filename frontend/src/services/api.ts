@@ -208,6 +208,12 @@ export const expensesApi = {
     invalidateExpenseCache();
     return result;
   },
+
+  async bulkCreate(expenses: ExpenseInput[]): Promise<Expense[]> {
+    const result = await callApi<Expense[]>('bulkCreateExpenses', { expenses });
+    invalidateExpenseCache();
+    return result;
+  },
 };
 
 // 集計API（月/年+payer別キャッシュ、変更時に破棄）
