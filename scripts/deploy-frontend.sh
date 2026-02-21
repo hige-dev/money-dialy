@@ -38,6 +38,6 @@ aws s3 cp dist/index.html "$S3_DEST/index.html" \
 echo "CloudFrontキャッシュを無効化中..."
 aws cloudfront create-invalidation \
   --distribution-id "$CF_DISTRIBUTION_ID" \
-  --paths "/index.html"
+  --paths "/index.html" | cat
 
 echo "=== デプロイ完了 ==="

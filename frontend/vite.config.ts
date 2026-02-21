@@ -1,4 +1,4 @@
-import { defineConfig } from 'vite'
+import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 import type { Plugin } from 'vite'
 import { execSync } from 'child_process'
@@ -6,13 +6,11 @@ import { readFileSync, unlinkSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
-const LAMBDA_FUNCTION_NAME = process.env.LAMBDA_FUNCTION_NAME || ''
-
 /**
  * ローカル開発用: /api へのリクエストを aws lambda invoke で直接呼び出す。
  * CloudFront OAC をバイパスし、ローカルの AWS 認証情報を使う。
  */
-function lambdaProxy(): Plugin {
+function lambdaProxy(functionName: string): Plugin {
   return {
     name: 'lambda-proxy',
     configureServer(server) {
@@ -43,7 +41,7 @@ function lambdaProxy(): Plugin {
             })
 
             execSync(
-              `aws lambda invoke --function-name ${LAMBDA_FUNCTION_NAME} --cli-binary-format raw-in-base64-out --payload '${event.replace(/'/g, "'\\''")}' ${outFile}`,
+              `aws lambda invoke --function-name ${functionName} --cli-binary-format raw-in-base64-out --payload '${event.replace(/'/g, "'\\''")}' ${outFile}`,
               { encoding: 'utf-8', timeout: 30000 },
             )
 
@@ -70,6 +68,9 @@ function lambdaProxy(): Plugin {
 }
 
 // https://vite.dev/config/
-export default defineConfig({
-  plugins: [react(), lambdaProxy()],
+export default defineConfig(({ mode }) => {
+  const env = loadEnv(mode, process.cwd(), '')
+  return {
+    plugins: [react(), lambdaProxy(env.LAMBDA_FUNCTION_NAME || '')],
+  }
 })
