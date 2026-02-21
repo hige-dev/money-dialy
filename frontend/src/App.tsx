@@ -10,6 +10,7 @@ import { SummaryPage } from './pages/SummaryPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { RecurringPage } from './pages/RecurringPage';
 import { SettingsPage } from './pages/SettingsPage';
+import { BalancePage } from './pages/BalancePage';
 import { config } from './config';
 import './App.css';
 
@@ -27,6 +28,14 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function AdminRoute({ children }: { children: React.ReactNode }) {
+  const { user } = useAuth();
+  if (user?.role !== 'admin') {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}
+
 function AppRoutes() {
   return (
     <ProtectedRoute>
@@ -37,8 +46,9 @@ function AppRoutes() {
             <Route path="/input" element={<ExpenseInputPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/list" element={<ExpenseListPage />} />
-            <Route path="/recurring" element={<RecurringPage />} />
-            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/recurring" element={<AdminRoute><RecurringPage /></AdminRoute>} />
+            <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
+            <Route path="/balance" element={<AdminRoute><BalancePage /></AdminRoute>} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </main>
