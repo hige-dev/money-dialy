@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { categoriesApi, placesApi, payersApi } from '../services/api';
+import { useAuth } from '../contexts/AuthContext';
 import type { Category, Place, Payer, CategoryInput, PlaceInput, PayerInput } from '../types';
 
 type Tab = 'categories' | 'places' | 'payers';
@@ -29,12 +30,14 @@ function generateGradientColors(count: number): string[] {
 function CategoryModal({
   initial,
   categories,
+  ownerEmail,
   onSave,
   onDelete,
   onClose,
 }: {
   initial?: Category;
   categories: Category[];
+  ownerEmail?: string;
   onSave: (input: CategoryInput) => void;
   onDelete?: () => void;
   onClose: () => void;
@@ -114,7 +117,7 @@ function CategoryModal({
         <div className="modal-actions">
           <button
             className="modal-btn modal-btn-primary"
-            onClick={() => onSave({ name, sortOrder: Number(sortOrder), color, isActive, isExpense, excludeFromBreakdown, excludeFromSummary })}
+            onClick={() => onSave({ name, sortOrder: Number(sortOrder), color, isActive, isExpense, excludeFromBreakdown, excludeFromSummary, ownerEmail: ownerEmail || initial?.ownerEmail })}
             disabled={!name.trim()}
           >
             保存
@@ -254,6 +257,7 @@ function PayerModal({
 
 // --- メインページ ---
 export function SettingsPage() {
+  const { user } = useAuth();
   const [tab, setTab] = useState<Tab>('categories');
   const [categories, setCategories] = useState<Category[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
@@ -262,7 +266,7 @@ export function SettingsPage() {
   const [toast, setToast] = useState<string | null>(null);
 
   // モーダル状態
-  const [editCategory, setEditCategory] = useState<Category | null | 'new'>(null);
+  const [editCategory, setEditCategory] = useState<Category | null | 'new' | 'new-personal'>(null);
   const [editPlace, setEditPlace] = useState<Place | null | 'new'>(null);
   const [editPayer, setEditPayer] = useState<Payer | null | 'new'>(null);
 
@@ -298,7 +302,7 @@ export function SettingsPage() {
   // --- カテゴリ CRUD ---
   const handleSaveCategory = async (input: CategoryInput) => {
     try {
-      if (editCategory === 'new') {
+      if (editCategory === 'new' || editCategory === 'new-personal') {
         await categoriesApi.create(input);
         setToast('カテゴリを追加しました');
       } else if (editCategory) {
@@ -432,6 +436,7 @@ export function SettingsPage() {
                       isExpense: sorted[i].isExpense,
                       excludeFromBreakdown: sorted[i].excludeFromBreakdown,
                       excludeFromSummary: sorted[i].excludeFromSummary,
+                      ownerEmail: sorted[i].ownerEmail,
                     });
                   }
                   setCategories(await categoriesApi.getAllIncludingInactive() || []);
@@ -446,8 +451,10 @@ export function SettingsPage() {
             </button>
             <button className="recurring-add-btn" onClick={() => setEditCategory('new')}>+ 追加</button>
           </div>
+          {/* 共有カテゴリ */}
+          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6b7280', padding: '8px 16px 0' }}>共有カテゴリ</div>
           <div className="settings-list">
-            {categories.map((cat) => (
+            {categories.filter((c) => !c.ownerEmail).map((cat) => (
               <div
                 key={cat.id}
                 className={`settings-item ${!cat.isActive ? 'inactive' : ''}`}
@@ -464,14 +471,41 @@ export function SettingsPage() {
                 </div>
               </div>
             ))}
-            {categories.length === 0 && <div className="empty-state"><p>カテゴリがありません</p></div>}
+            {categories.filter((c) => !c.ownerEmail).length === 0 && <div className="empty-state"><p>共有カテゴリがありません</p></div>}
+          </div>
+
+          {/* 個人カテゴリ */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 0' }}>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6b7280' }}>個人カテゴリ</span>
+            <button className="recurring-add-btn" onClick={() => setEditCategory('new-personal')}>+ 追加</button>
+          </div>
+          <div className="settings-list">
+            {categories.filter((c) => !!c.ownerEmail).map((cat) => (
+              <div
+                key={cat.id}
+                className={`settings-item ${!cat.isActive ? 'inactive' : ''}`}
+                onClick={() => setEditCategory(cat)}
+              >
+                <div className="settings-item-color" style={{ background: cat.color }} />
+                <div className="settings-item-body">
+                  <span className="settings-item-name">{cat.name}</span>
+                  <span className="settings-item-meta">
+                    {!cat.isExpense && <span className="settings-item-badge">収入</span>}
+                    {!cat.isActive && <span className="settings-item-badge inactive-badge">無効</span>}
+                    <span className="settings-item-order">#{cat.sortOrder}</span>
+                  </span>
+                </div>
+              </div>
+            ))}
+            {categories.filter((c) => !!c.ownerEmail).length === 0 && <div className="empty-state"><p>個人カテゴリがありません</p></div>}
           </div>
           {editCategory && (
             <CategoryModal
-              initial={editCategory === 'new' ? undefined : editCategory}
+              initial={editCategory === 'new' || editCategory === 'new-personal' ? undefined : editCategory}
               categories={categories}
+              ownerEmail={editCategory === 'new-personal' ? user?.email : undefined}
               onSave={handleSaveCategory}
-              onDelete={editCategory !== 'new' ? () => handleDeleteCategory(editCategory.id) : undefined}
+              onDelete={editCategory !== 'new' && editCategory !== 'new-personal' ? () => handleDeleteCategory(editCategory.id) : undefined}
               onClose={() => setEditCategory(null)}
             />
           )}

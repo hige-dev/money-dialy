@@ -127,7 +127,7 @@ func Handle(ctx context.Context, event events.APIGatewayV2HTTPRequest) (events.A
 func handleAction(ctx context.Context, client *dynamo.Client, req *model.ActionRequest, userEmail string) (any, error) {
 	switch req.Action {
 	case "getCategories":
-		return service.GetCategories(ctx, client)
+		return service.GetCategories(ctx, client, userEmail)
 
 	case "getPlaces":
 		return service.GetPlaces(ctx, client)
@@ -230,13 +230,13 @@ func handleAction(ctx context.Context, client *dynamo.Client, req *model.ActionR
 	// --- マスタ管理 ---
 
 	case "getAllCategories":
-		return service.GetAllCategories(ctx, client)
+		return service.GetAllCategories(ctx, client, userEmail)
 
 	case "createCategory":
 		if req.Category == nil {
 			return nil, apperror.New("category は必須です")
 		}
-		return service.CreateCategory(ctx, client, req.Category)
+		return service.CreateCategory(ctx, client, req.Category, userEmail)
 
 	case "updateCategory":
 		if req.ID == "" {
@@ -245,13 +245,13 @@ func handleAction(ctx context.Context, client *dynamo.Client, req *model.ActionR
 		if req.Category == nil {
 			return nil, apperror.New("category は必須です")
 		}
-		return service.UpdateCategory(ctx, client, req.ID, req.Category)
+		return service.UpdateCategory(ctx, client, req.ID, req.Category, userEmail)
 
 	case "deleteCategory":
 		if req.ID == "" {
 			return nil, apperror.New("id は必須です")
 		}
-		return nil, service.DeleteCategory(ctx, client, req.ID)
+		return nil, service.DeleteCategory(ctx, client, req.ID, userEmail)
 
 	case "getAllPlaces":
 		return service.GetAllPlaces(ctx, client)

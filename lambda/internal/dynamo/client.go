@@ -116,6 +116,7 @@ type categoryItem struct {
 	IsExpense            bool   `dynamodbav:"isExpense"`
 	ExcludeFromBreakdown bool   `dynamodbav:"excludeFromBreakdown"`
 	ExcludeFromSummary   bool   `dynamodbav:"excludeFromSummary"`
+	OwnerEmail           string `dynamodbav:"ownerEmail,omitempty"`
 }
 
 // placeItem は DynamoDB master テーブルの場所アイテム
@@ -295,6 +296,7 @@ func (c *Client) GetCategories(ctx context.Context) ([]model.Category, error) {
 				IsExpense:            item.IsExpense,
 				ExcludeFromBreakdown: item.ExcludeFromBreakdown,
 				ExcludeFromSummary:   item.ExcludeFromSummary,
+				OwnerEmail:           item.OwnerEmail,
 			})
 		}
 	}
@@ -376,6 +378,7 @@ func (c *Client) GetAllCategories(ctx context.Context) ([]model.Category, error)
 			Color: item.Color, IsActive: item.IsActive, IsExpense: item.IsExpense,
 			ExcludeFromBreakdown: item.ExcludeFromBreakdown,
 			ExcludeFromSummary:   item.ExcludeFromSummary,
+			OwnerEmail:           item.OwnerEmail,
 		}
 	}
 	sort.Slice(categories, func(i, j int) bool {
@@ -391,6 +394,7 @@ func (c *Client) PutCategory(ctx context.Context, cat *model.Category) error {
 		Color: cat.Color, IsActive: cat.IsActive, IsExpense: cat.IsExpense,
 		ExcludeFromBreakdown: cat.ExcludeFromBreakdown,
 		ExcludeFromSummary:   cat.ExcludeFromSummary,
+		OwnerEmail:           cat.OwnerEmail,
 	}
 	av, err := attributevalue.MarshalMap(item)
 	if err != nil {

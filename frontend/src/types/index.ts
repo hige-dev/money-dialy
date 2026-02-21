@@ -54,6 +54,7 @@ export interface Category {
   isExpense: boolean;
   excludeFromBreakdown: boolean;
   excludeFromSummary: boolean;
+  ownerEmail?: string;
 }
 
 // 支払元残額（月別）
@@ -145,6 +146,7 @@ export interface CategoryInput {
   isExpense: boolean;
   excludeFromBreakdown: boolean;
   excludeFromSummary: boolean;
+  ownerEmail?: string;
 }
 
 // 場所入力型

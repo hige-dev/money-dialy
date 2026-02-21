@@ -12,13 +12,13 @@ import (
 	"money-diary/internal/model"
 )
 
-// RefreshMonthlySummaryCache は指定月の集計キャッシュを再計算して保存する
+// RefreshMonthlySummaryCache は指定月の集計キャッシュを再計算して保存する（共有カテゴリのみ）
 func RefreshMonthlySummaryCache(ctx context.Context, client *dynamo.Client, yearMonth string) error {
 	expenses, err := client.QueryExpensesByMonth(ctx, yearMonth)
 	if err != nil {
 		return err
 	}
-	catMaps, err := GetCategoryMaps(ctx, client)
+	catMaps, err := GetCategoryMaps(ctx, client, "")
 	if err != nil {
 		return err
 	}
@@ -34,7 +34,7 @@ func RefreshMonthlySummaryCache(ctx context.Context, client *dynamo.Client, year
 // GetMonthlySummary は指定月の集計データを返す（payer指定時はフィルタ）。
 // userEmail に応じて visibility フィルタを適用する。
 func GetMonthlySummary(ctx context.Context, client *dynamo.Client, month string, payer string, userEmail string) (*model.MonthlySummary, error) {
-	catMaps, err := GetCategoryMaps(ctx, client)
+	catMaps, err := GetCategoryMaps(ctx, client, userEmail)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func GetYearlySummary(ctx context.Context, client *dynamo.Client, month string, 
 		months = append(months, fmt.Sprintf("%04d-%02d", t.Year(), t.Month()))
 	}
 
-	catMaps, err := GetCategoryMaps(ctx, client)
+	catMaps, err := GetCategoryMaps(ctx, client, userEmail)
 	if err != nil {
 		return nil, err
 	}

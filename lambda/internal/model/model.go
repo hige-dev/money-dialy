@@ -53,6 +53,7 @@ type Category struct {
 	IsExpense            bool   `json:"isExpense"`
 	ExcludeFromBreakdown bool   `json:"excludeFromBreakdown"` // 内訳から除外（総額には含む）
 	ExcludeFromSummary   bool   `json:"excludeFromSummary"`   // 集計から完全除外（Balanceのみ表示）
+	OwnerEmail           string `json:"ownerEmail"`           // 空=共有、値あり=個人カテゴリ
 }
 
 // PayerBalance は支払元の残額情報（月別）
@@ -158,6 +159,7 @@ type CategoryInput struct {
 	IsExpense            bool   `json:"isExpense"`
 	ExcludeFromBreakdown bool   `json:"excludeFromBreakdown"`
 	ExcludeFromSummary   bool   `json:"excludeFromSummary"`
+	OwnerEmail           string `json:"ownerEmail"`
 }
 
 // PlaceInput は場所登録・更新のリクエスト

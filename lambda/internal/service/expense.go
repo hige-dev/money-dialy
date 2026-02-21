@@ -37,6 +37,16 @@ func CreateExpense(ctx context.Context, client *dynamo.Client, input *model.Expe
 		return nil, apperror.New("visibility は public, summary, private のいずれかを指定してください")
 	}
 
+	// 個人カテゴリの場合は visibility を private に強制
+	catMaps, err := GetCategoryMaps(ctx, client, userEmail)
+	if err != nil {
+		return nil, err
+	}
+	visibility := input.Visibility
+	if catMaps.OwnerEmail[input.Category] != "" {
+		visibility = VisibilityPrivate
+	}
+
 	now := time.Now().UTC().Format(time.RFC3339)
 	expense := model.Expense{
 		ID:         uuid.New().String(),
@@ -46,7 +56,7 @@ func CreateExpense(ctx context.Context, client *dynamo.Client, input *model.Expe
 		Amount:     input.Amount,
 		Memo:       input.Memo,
 		Place:      input.Place,
-		Visibility: input.Visibility,
+		Visibility: visibility,
 		CreatedBy:  userEmail,
 		CreatedAt:  now,
 		UpdatedAt:  now,
@@ -77,11 +87,21 @@ func BulkCreateExpenses(ctx context.Context, client *dynamo.Client, inputs []mod
 		}
 	}
 
+	// 個人カテゴリの visibility 強制用
+	catMaps, err := GetCategoryMaps(ctx, client, userEmail)
+	if err != nil {
+		return nil, err
+	}
+
 	now := time.Now().UTC().Format(time.RFC3339)
 	expenses := make([]model.Expense, 0, len(inputs))
 	affectedMonths := make(map[string]bool)
 
 	for _, input := range inputs {
+		visibility := input.Visibility
+		if catMaps.OwnerEmail[input.Category] != "" {
+			visibility = VisibilityPrivate
+		}
 		expense := model.Expense{
 			ID:         uuid.New().String(),
 			Date:       input.Date,
@@ -90,7 +110,7 @@ func BulkCreateExpenses(ctx context.Context, client *dynamo.Client, inputs []mod
 			Amount:     input.Amount,
 			Memo:       input.Memo,
 			Place:      input.Place,
-			Visibility: input.Visibility,
+			Visibility: visibility,
 			CreatedBy:  userEmail,
 			CreatedAt:  now,
 			UpdatedAt:  now,
@@ -204,7 +224,7 @@ func GetPayerBalance(ctx context.Context, client *dynamo.Client, payerName strin
 		return nil, err
 	}
 
-	catMaps, err := GetCategoryMaps(ctx, client)
+	catMaps, err := GetCategoryMaps(ctx, client, "")
 	if err != nil {
 		return nil, err
 	}

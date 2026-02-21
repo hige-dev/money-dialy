@@ -62,6 +62,8 @@ export function BulkExpensePage() {
   }, [toast]);
 
   const catNameMap = new Map(categories.map((c) => [c.id, c.name]));
+  const selectedCat = categories.find((c) => c.id === selectedCategory);
+  const isPersonalCategory = !!selectedCat?.ownerEmail;
   const place = selectedPlace === '__other__' ? customPlace : selectedPlace;
   const numAmount = Number(amount);
   const numDay = Number(day);
@@ -117,7 +119,11 @@ export function BulkExpensePage() {
       <div className="input-form">
         <div className="input-field">
           <label>カテゴリ</label>
-          <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
+          <select value={selectedCategory} onChange={(e) => {
+            setSelectedCategory(e.target.value);
+            const cat = categories.find((c) => c.id === e.target.value);
+            if (cat?.ownerEmail) setVisibility('private');
+          }}>
             <option value="">選択してください</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
@@ -173,11 +179,12 @@ export function BulkExpensePage() {
         </div>
         <div className="input-field">
           <label>公開設定</label>
-          <select value={visibility} onChange={(e) => setVisibility(e.target.value as Visibility)}>
+          <select value={isPersonalCategory ? 'private' : visibility} onChange={(e) => setVisibility(e.target.value as Visibility)} disabled={isPersonalCategory}>
             <option value="public">全員に公開</option>
             <option value="summary">金額のみ公開</option>
             <option value="private">自分のみ</option>
           </select>
+          {isPersonalCategory && <span style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>個人カテゴリのため自動設定</span>}
         </div>
 
         <div className="input-field">
