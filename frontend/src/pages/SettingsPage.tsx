@@ -48,6 +48,7 @@ function CategoryModal({
   const [isActive, setIsActive] = useState(initial?.isActive ?? true);
   const [isExpense, setIsExpense] = useState(initial?.isExpense ?? true);
   const [excludeFromBreakdown, setExcludeFromBreakdown] = useState(initial?.excludeFromBreakdown ?? false);
+  const [excludeFromSummary, setExcludeFromSummary] = useState(initial?.excludeFromSummary ?? false);
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -98,6 +99,13 @@ function CategoryModal({
 
         <div className="modal-field">
           <label className="recurring-active-label">
+            <input type="checkbox" checked={excludeFromSummary} onChange={(e) => setExcludeFromSummary(e.target.checked)} />
+            集計から除外（Balanceのみ表示）
+          </label>
+        </div>
+
+        <div className="modal-field">
+          <label className="recurring-active-label">
             <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
             有効
           </label>
@@ -106,7 +114,7 @@ function CategoryModal({
         <div className="modal-actions">
           <button
             className="modal-btn modal-btn-primary"
-            onClick={() => onSave({ name, sortOrder: Number(sortOrder), color, isActive, isExpense, excludeFromBreakdown })}
+            onClick={() => onSave({ name, sortOrder: Number(sortOrder), color, isActive, isExpense, excludeFromBreakdown, excludeFromSummary })}
             disabled={!name.trim()}
           >
             保存
@@ -423,6 +431,7 @@ export function SettingsPage() {
                       isActive: sorted[i].isActive,
                       isExpense: sorted[i].isExpense,
                       excludeFromBreakdown: sorted[i].excludeFromBreakdown,
+                      excludeFromSummary: sorted[i].excludeFromSummary,
                     });
                   }
                   setCategories(await categoriesApi.getAllIncludingInactive() || []);

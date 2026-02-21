@@ -42,6 +42,8 @@ export function ExpenseInputPage() {
     }
   }, [toast]);
 
+  const catNameMap = new Map(categories.map((c) => [c.id, c.name]));
+
   const canSubmit = selectedCategory && selectedPayer && Number(amount) > 0;
 
   const handleSubmit = async () => {
@@ -59,7 +61,7 @@ export function ExpenseInputPage() {
         place: selectedPlace === '__other__' ? customPlace : selectedPlace,
         visibility,
       });
-      setToast(`${selectedCategory} \u00a5${numAmount.toLocaleString()} を登録しました`);
+      setToast(`${catNameMap.get(selectedCategory) || selectedCategory} \u00a5${numAmount.toLocaleString()} を登録しました`);
       setAmount('');
       setMemo('');
     } catch (e) {
@@ -93,7 +95,7 @@ export function ExpenseInputPage() {
           <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
             <option value="">選択してください</option>
             {categories.map((c) => (
-              <option key={c.id} value={c.name}>{c.name}</option>
+              <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         </div>

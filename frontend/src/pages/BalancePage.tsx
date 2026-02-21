@@ -41,12 +41,17 @@ export function BalancePage() {
   }, [loadData]);
 
   const expenseCategorySet = useMemo(
-    () => new Set(categories.filter((c) => c.isExpense).map((c) => c.name)),
+    () => new Set(categories.filter((c) => c.isExpense).map((c) => c.id)),
     [categories],
   );
 
   const colorMap = useMemo(
-    () => new Map(categories.map((c) => [c.name, c.color])),
+    () => new Map(categories.map((c) => [c.id, c.color])),
+    [categories],
+  );
+
+  const catNameMap = useMemo(
+    () => new Map(categories.map((c) => [c.id, c.name])),
     [categories],
   );
 
@@ -62,9 +67,9 @@ export function BalancePage() {
       }
     }
 
-    const inc = Array.from(incMap, ([category, amount]) => ({ category, amount }))
+    const inc = Array.from(incMap, ([categoryId, amount]) => ({ categoryId, name: catNameMap.get(categoryId) || categoryId, amount }))
       .sort((a, b) => b.amount - a.amount);
-    const exp = Array.from(expMap, ([category, amount]) => ({ category, amount }))
+    const exp = Array.from(expMap, ([categoryId, amount]) => ({ categoryId, name: catNameMap.get(categoryId) || categoryId, amount }))
       .sort((a, b) => b.amount - a.amount);
 
     return {
@@ -73,7 +78,7 @@ export function BalancePage() {
       incomeTotal: inc.reduce((s, i) => s + i.amount, 0),
       expenseTotal: exp.reduce((s, i) => s + i.amount, 0),
     };
-  }, [expenses, expenseCategorySet]);
+  }, [expenses, expenseCategorySet, catNameMap]);
 
   const balance = incomeTotal - expenseTotal;
 
@@ -109,9 +114,9 @@ export function BalancePage() {
                 <button className="summary-breakdown-tab active">収入</button>
               </div>
               {incomeItems.map((item) => (
-                <div key={item.category} className="summary-category-item">
-                  <div className="summary-category-color" style={{ background: colorMap.get(item.category) || '#059669' }} />
-                  <span className="summary-category-name">{item.category}</span>
+                <div key={item.categoryId} className="summary-category-item">
+                  <div className="summary-category-color" style={{ background: colorMap.get(item.categoryId) || '#059669' }} />
+                  <span className="summary-category-name">{item.name}</span>
                   <span className="summary-category-amount">&yen;{item.amount.toLocaleString()}</span>
                   <span className="summary-category-percent">
                     {incomeTotal > 0 ? ((item.amount / incomeTotal) * 100).toFixed(1) : '0.0'}%
@@ -128,9 +133,9 @@ export function BalancePage() {
                 <button className="summary-breakdown-tab active">支出</button>
               </div>
               {expenseItems.map((item) => (
-                <div key={item.category} className="summary-category-item">
-                  <div className="summary-category-color" style={{ background: colorMap.get(item.category) || '#dc2626' }} />
-                  <span className="summary-category-name">{item.category}</span>
+                <div key={item.categoryId} className="summary-category-item">
+                  <div className="summary-category-color" style={{ background: colorMap.get(item.categoryId) || '#dc2626' }} />
+                  <span className="summary-category-name">{item.name}</span>
                   <span className="summary-category-amount">&yen;{item.amount.toLocaleString()}</span>
                   <span className="summary-category-percent">
                     {expenseTotal > 0 ? ((item.amount / expenseTotal) * 100).toFixed(1) : '0.0'}%

@@ -29,7 +29,7 @@ interface EditModalProps {
 }
 
 function RecurringModal({ initial, categories, places, payers, onSave, onClose }: EditModalProps) {
-  const [category, setCategory] = useState(initial?.category || (categories[0]?.name ?? ''));
+  const [category, setCategory] = useState(initial?.category || (categories[0]?.id ?? ''));
   const [amount, setAmount] = useState(initial ? String(initial.amount) : '');
   const [payer, setPayer] = useState(initial?.payer || (payers[0]?.name ?? ''));
   const [place, setPlace] = useState(initial?.place || '');
@@ -100,7 +100,7 @@ function RecurringModal({ initial, categories, places, payers, onSave, onClose }
           <label>カテゴリ</label>
           <select value={category} onChange={(e) => setCategory(e.target.value)}>
             {categories.map((c) => (
-              <option key={c.id} value={c.name}>{c.name}</option>
+              <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         </div>
@@ -217,6 +217,8 @@ export function RecurringPage() {
     }
   }, [toast]);
 
+  const catNameMap = new Map(categories.map((c) => [c.id, c.name]));
+
   const handleSave = async (input: RecurringExpenseInput) => {
     try {
       if (editTarget === 'new') {
@@ -256,7 +258,7 @@ export function RecurringPage() {
         memo: item.memo,
         place: item.place,
       });
-      setToast(`${item.category} ¥${item.amount.toLocaleString()} を登録しました`);
+      setToast(`${catNameMap.get(item.category) || item.category} ¥${item.amount.toLocaleString()} を登録しました`);
     } catch (e) {
       console.error(e);
       setToast('登録に失敗しました');
@@ -288,7 +290,7 @@ export function RecurringPage() {
             >
               <div className="recurring-item-body">
                 <div className="recurring-item-top">
-                  <span className="recurring-item-category">{item.category}</span>
+                  <span className="recurring-item-category">{catNameMap.get(item.category) || item.category}</span>
                   <span className="recurring-item-amount">&yen;{item.amount.toLocaleString()}</span>
                 </div>
                 <div className="recurring-item-meta">

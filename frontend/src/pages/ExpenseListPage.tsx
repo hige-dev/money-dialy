@@ -78,7 +78,7 @@ function EditModal({ expense, categories, places, payers, onSave, onDelete, onCl
           <label>カテゴリ</label>
           <select value={category} onChange={(e) => setCategory(e.target.value)}>
             {categories.map((c) => (
-              <option key={c.id} value={c.name}>{c.name}</option>
+              <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         </div>
@@ -139,10 +139,12 @@ export function ExpenseListPage() {
   const [loading, setLoading] = useState(true);
   const [editTarget, setEditTarget] = useState<Expense | null>(null);
   const [toast, setToast] = useState<string | null>(null);
+  const [tab, setTab] = useState<'shared' | 'personal'>('shared');
 
   const month = getMonth(date);
 
-  const colorMap = new Map(categories.map((c) => [c.name, c.color]));
+  const colorMap = new Map(categories.map((c) => [c.id, c.color]));
+  const catNameMap = new Map(categories.map((c) => [c.id, c.name]));
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -213,20 +215,32 @@ export function ExpenseListPage() {
     }
   };
 
-  const expenseCategories = new Set(categories.filter((c) => c.isExpense).map((c) => c.name));
-  const total = expenses.filter((e) => expenseCategories.has(e.category)).reduce((sum, e) => sum + e.amount, 0);
-  const grouped = groupByDate(expenses);
+  const expenseCategories = new Set(categories.filter((c) => c.isExpense).map((c) => c.id));
+  const filtered = tab === 'shared'
+    ? expenses.filter(e => !e.visibility || e.visibility === 'public')
+    : expenses.filter(e =>
+        e.createdBy === user?.email &&
+        (e.visibility === 'summary' || e.visibility === 'private')
+      );
+  const total = filtered.filter((e) => expenseCategories.has(e.category)).reduce((sum, e) => sum + e.amount, 0);
+  const grouped = groupByDate(filtered);
 
   return (
     <>
       <MonthPicker value={date} onChange={setDate} mode="month" />
+      <div className="summary-breakdown-tabs">
+        <button className={`summary-breakdown-tab ${tab === 'shared' ? 'active' : ''}`}
+          onClick={() => setTab('shared')}>共有</button>
+        <button className={`summary-breakdown-tab ${tab === 'personal' ? 'active' : ''}`}
+          onClick={() => setTab('personal')}>個人</button>
+      </div>
       <div className="expense-list-total">
         合計: &yen;{total.toLocaleString()}
       </div>
 
       {loading ? (
         <div className="loading-spinner"><div className="spinner"></div></div>
-      ) : expenses.length === 0 ? (
+      ) : filtered.length === 0 ? (
         <div className="empty-state"><p>この月のデータはありません</p></div>
       ) : (
         <div className="expense-list">
@@ -234,7 +248,7 @@ export function ExpenseListPage() {
             <div key={dateKey} className="expense-date-group" data-date={dateKey}>
               <div className="expense-date-header">{formatDateShort(dateKey)}</div>
               {items.map((item) => {
-                const isMasked = item.category === '個人出費' && item.createdBy !== user?.email;
+                const isMasked = tab === 'shared' && item.visibility === 'summary' && item.createdBy !== user?.email;
                 return (
                   <div
                     key={item.id}
@@ -248,7 +262,7 @@ export function ExpenseListPage() {
                     />
                     <div className="expense-item-body">
                       <div className="expense-item-top">
-                        <span className="expense-item-category">{item.category}</span>
+                        <span className="expense-item-category">{isMasked ? '個人出費' : (catNameMap.get(item.category) || item.category)}</span>
                         <span className="expense-item-amount">&yen;{item.amount.toLocaleString()}</span>
                       </div>
                       <div className="expense-item-meta">

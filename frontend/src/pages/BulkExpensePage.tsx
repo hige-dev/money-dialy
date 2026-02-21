@@ -61,6 +61,7 @@ export function BulkExpensePage() {
     }
   }, [toast]);
 
+  const catNameMap = new Map(categories.map((c) => [c.id, c.name]));
   const place = selectedPlace === '__other__' ? customPlace : selectedPlace;
   const numAmount = Number(amount);
   const numDay = Number(day);
@@ -119,7 +120,7 @@ export function BulkExpensePage() {
           <select value={selectedCategory} onChange={(e) => setSelectedCategory(e.target.value)}>
             <option value="">選択してください</option>
             {categories.map((c) => (
-              <option key={c.id} value={c.name}>{c.name}</option>
+              <option key={c.id} value={c.id}>{c.name}</option>
             ))}
           </select>
         </div>
@@ -213,7 +214,7 @@ export function BulkExpensePage() {
         {canSubmit && (
           <div style={{ background: '#f9fafb', borderRadius: '8px', padding: '12px', fontSize: '0.85rem', color: '#374151' }}>
             <div style={{ fontWeight: 600, marginBottom: '4px' }}>
-              {selectedCategory} &yen;{numAmount.toLocaleString()} &times; {months.length}件
+              {catNameMap.get(selectedCategory) || selectedCategory} &yen;{numAmount.toLocaleString()} &times; {months.length}件
               = &yen;{(numAmount * months.length).toLocaleString()}
             </div>
             <div style={{ color: '#6b7280', fontSize: '0.8rem' }}>

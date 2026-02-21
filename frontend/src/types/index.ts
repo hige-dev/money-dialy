@@ -53,6 +53,7 @@ export interface Category {
   isActive: boolean;
   isExpense: boolean;
   excludeFromBreakdown: boolean;
+  excludeFromSummary: boolean;
 }
 
 // 支払元残額（月別）
@@ -66,6 +67,7 @@ export interface PayerBalance {
 
 // カテゴリ別集計
 export interface CategorySummary {
+  categoryId: string;
   category: string;
   amount: number;
   color: string;
@@ -142,6 +144,7 @@ export interface CategoryInput {
   isActive: boolean;
   isExpense: boolean;
   excludeFromBreakdown: boolean;
+  excludeFromSummary: boolean;
 }
 
 // 場所入力型

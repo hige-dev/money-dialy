@@ -77,7 +77,7 @@ export function CalendarPage() {
     loadData();
   }, [loadData]);
 
-  const expenseCategories = new Set(categories.filter((c) => c.isExpense).map((c) => c.name));
+  const expenseCategories = new Set(categories.filter((c) => c.isExpense).map((c) => c.id));
   const days = buildCalendarDays(year, monthNum);
   const dailyTotals = aggregateByDay(expenses, expenseCategories);
   const maxAmount = Math.max(...dailyTotals.values(), 0);
