@@ -134,7 +134,6 @@ export function MonthPicker({ value, onChange, mode = 'date' }: MonthPickerProps
     setShowCalendar(false);
   };
 
-  const todayStr = toDateString(new Date());
   const todayYear = new Date().getFullYear();
   const todayMonth = new Date().getMonth() + 1;
   const todayDay = new Date().getDate();
