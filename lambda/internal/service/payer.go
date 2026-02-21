@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"money-diary/internal/apperror"
 	"money-diary/internal/dynamo"
 	"money-diary/internal/model"
@@ -24,7 +26,7 @@ func CreatePayer(ctx context.Context, client *dynamo.Client, input *model.PayerI
 		return nil, apperror.New("名前は必須です")
 	}
 	p := &model.Payer{
-		ID:           input.Name,
+		ID:           uuid.New().String(),
 		Name:         input.Name,
 		SortOrder:    input.SortOrder,
 		IsActive:     input.IsActive,

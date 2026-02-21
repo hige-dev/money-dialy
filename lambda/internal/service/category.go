@@ -3,6 +3,8 @@ package service
 import (
 	"context"
 
+	"github.com/google/uuid"
+
 	"money-diary/internal/apperror"
 	"money-diary/internal/dynamo"
 	"money-diary/internal/model"
@@ -24,7 +26,7 @@ func CreateCategory(ctx context.Context, client *dynamo.Client, input *model.Cat
 		return nil, apperror.New("名前は必須です")
 	}
 	cat := &model.Category{
-		ID:                   input.Name,
+		ID:                   uuid.New().String(),
 		Name:                 input.Name,
 		SortOrder:            input.SortOrder,
 		Color:                input.Color,
