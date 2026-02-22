@@ -37,10 +37,18 @@ function aggregateByDay(expenses: Expense[], expenseCategories: Set<string>): Ma
   return map;
 }
 
-/** 支出額に応じた背景色の濃さ（0.0〜0.5） */
-function intensityColor(amount: number, maxAmount: number): string {
-  if (amount === 0 || maxAmount === 0) return 'transparent';
-  const ratio = Math.min(amount / maxAmount, 1);
+/** 95パーセンタイル値を算出（外れ値に強い基準値） */
+function percentile95(values: number[]): number {
+  if (values.length === 0) return 0;
+  const sorted = [...values].sort((a, b) => a - b);
+  const idx = Math.ceil(sorted.length * 0.95) - 1;
+  return sorted[Math.min(idx, sorted.length - 1)];
+}
+
+/** 支出額に応じた背景色の濃さ（パーセンタイルベース） */
+function intensityColor(amount: number, refAmount: number): string {
+  if (amount === 0 || refAmount === 0) return 'transparent';
+  const ratio = Math.min(amount / refAmount, 1);
   const alpha = 0.1 + ratio * 0.4;
   return `rgba(239, 68, 68, ${alpha})`;
 }
@@ -233,7 +241,8 @@ export function CalendarPage() {
   // カレンダー用
   const days = buildCalendarDays(year, monthNum);
   const dailyTotals = aggregateByDay(expenses, expenseCategories);
-  const maxAmount = Math.max(...dailyTotals.values(), 0);
+  const nonZeroTotals = [...dailyTotals.values()].filter(v => v > 0);
+  const maxAmount = nonZeroTotals.length > 0 ? percentile95(nonZeroTotals) : 0;
 
   const today = todayString();
   const todayDay = month === getMonth(today) ? parseInt(today.slice(8, 10), 10) : -1;
