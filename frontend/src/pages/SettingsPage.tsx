@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { categoriesApi, placesApi, payersApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { Category, Place, Payer, CategoryInput, PlaceInput, PayerInput } from '../types';
@@ -258,6 +259,7 @@ function PayerModal({
 // --- メインページ ---
 export function SettingsPage() {
   const { user } = useAuth();
+  const navigate = useNavigate();
   const [tab, setTab] = useState<Tab>('categories');
   const [categories, setCategories] = useState<Category[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
@@ -400,6 +402,15 @@ export function SettingsPage() {
     <>
       <div className="recurring-header">
         <h2>設定</h2>
+      </div>
+
+      <div className="summary-recurring-link">
+        <button className="recurring-link-btn" onClick={() => navigate('/recurring')}>
+          テンプレートを管理
+        </button>
+        <button className="recurring-link-btn" onClick={() => navigate('/bulk')} style={{ marginTop: 8 }}>
+          一括登録
+        </button>
       </div>
 
       {/* タブ */}

@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 import type { ChartOptions } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
@@ -169,7 +168,7 @@ export function SummaryPage() {
   const [expandedChart, setExpandedChart] = useState<'doughnut' | 'bar' | null>(null);
   const [filterCount, setFilterCount] = useState(0);
   const [breakdownTab, setBreakdownTab] = useState<'category' | 'place'>('category');
-  const navigate = useNavigate();
+  const [expandedCategory, setExpandedCategory] = useState<string | null>(null);
   const selectedRef = useRef(new Set<number>());
   const barScrollRef = useRef<HTMLDivElement>(null);
   const barChartRef = useRef<ChartJS<'bar'>>(null);
@@ -429,12 +428,51 @@ export function SummaryPage() {
             const percent = summary.total > 0
               ? ((cat.amount / summary.total) * 100).toFixed(1)
               : '0.0';
+            const isExpanded = expandedCategory === cat.categoryId;
+            const catExpenses = isExpanded
+              ? expenses
+                  .filter((e) => e.category === cat.categoryId)
+                  .filter((e) => !selectedPayer || e.payer === selectedPayer)
+                  .sort((a, b) => b.date.localeCompare(a.date))
+              : [];
             return (
-              <div key={cat.category} className="summary-category-item">
-                <div className="summary-category-color" style={{ background: cat.color }} />
-                <span className="summary-category-name">{cat.category}</span>
-                <span className="summary-category-amount">&yen;{cat.amount.toLocaleString()}</span>
-                <span className="summary-category-percent">{percent}%</span>
+              <div key={cat.categoryId}>
+                <div
+                  className="summary-category-item"
+                  style={{ cursor: 'pointer', ...(isExpanded ? { background: '#f3f4f6' } : {}) }}
+                  onClick={() => setExpandedCategory(isExpanded ? null : cat.categoryId)}
+                >
+                  <div className="summary-category-color" style={{ background: cat.color }} />
+                  <span className="summary-category-name">{cat.category}</span>
+                  <span className="summary-category-amount">&yen;{cat.amount.toLocaleString()}</span>
+                  <span className="summary-category-percent">{percent}%</span>
+                </div>
+                {isExpanded && catExpenses.length > 0 && (
+                  <div style={{ paddingLeft: 16, paddingRight: 4, background: '#f9fafb' }}>
+                    {catExpenses.map((e) => {
+                      const d = new Date(e.date + 'T00:00:00');
+                      const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
+                      const dateLabel = `${d.getMonth() + 1}/${d.getDate()} (${weekdays[d.getDay()]})`;
+                      return (
+                        <div key={e.id} className="expense-item">
+                          <div className="expense-item-color" style={{ background: cat.color }} />
+                          <div className="expense-item-body">
+                            <div className="expense-item-top">
+                              <span className="expense-item-category">{dateLabel}</span>
+                              <span className="expense-item-amount">&yen;{e.amount.toLocaleString()}</span>
+                            </div>
+                            <div className="expense-item-meta">
+                              <span className="expense-item-payer">{e.payer}</span>
+                              {(e.place || e.memo) && (
+                                <span className="expense-item-memo">{e.place}{e.place && e.memo ? ' / ' : ''}{e.memo}</span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             );
           })}
@@ -452,18 +490,6 @@ export function SummaryPage() {
       {/* 最下部の月移動 */}
       <MonthPicker value={date} onChange={setDate} mode="month" />
 
-      {/* 定期支出・設定リンク */}
-      <div className="summary-recurring-link">
-        <button className="recurring-link-btn" onClick={() => navigate('/recurring')}>
-          テンプレートを管理
-        </button>
-        <button className="recurring-link-btn" onClick={() => navigate('/bulk')} style={{ marginTop: 8 }}>
-          一括登録
-        </button>
-        <button className="recurring-link-btn" onClick={() => navigate('/settings')} style={{ marginTop: 8 }}>
-          設定（マスタ管理）
-        </button>
-      </div>
     </>
   );
 }

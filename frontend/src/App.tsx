@@ -5,7 +5,6 @@ import { LoginButton } from './components/LoginButton';
 import { LoadingSpinner } from './components/LoadingSpinner';
 import { BottomNav } from './components/BottomNav';
 import { ExpenseInputPage } from './pages/ExpenseInputPage';
-import { ExpenseListPage } from './pages/ExpenseListPage';
 import { SummaryPage } from './pages/SummaryPage';
 import { CalendarPage } from './pages/CalendarPage';
 import { RecurringPage } from './pages/RecurringPage';
@@ -46,7 +45,7 @@ function AppRoutes() {
             <Route path="/" element={<SummaryPage />} />
             <Route path="/input" element={<ExpenseInputPage />} />
             <Route path="/calendar" element={<CalendarPage />} />
-            <Route path="/list" element={<ExpenseListPage />} />
+            <Route path="/list" element={<Navigate to="/calendar" replace />} />
             <Route path="/recurring" element={<AdminRoute><RecurringPage /></AdminRoute>} />
             <Route path="/settings" element={<AdminRoute><SettingsPage /></AdminRoute>} />
             <Route path="/balance" element={<AdminRoute><BalancePage /></AdminRoute>} />
