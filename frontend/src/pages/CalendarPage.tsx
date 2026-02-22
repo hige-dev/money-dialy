@@ -234,7 +234,6 @@ export function CalendarPage() {
   const days = buildCalendarDays(year, monthNum);
   const dailyTotals = aggregateByDay(expenses, expenseCategories);
   const maxAmount = Math.max(...dailyTotals.values(), 0);
-  const monthTotal = [...dailyTotals.values()].reduce((sum, v) => sum + v, 0);
 
   const today = todayString();
   const todayDay = month === getMonth(today) ? parseInt(today.slice(8, 10), 10) : -1;
@@ -260,9 +259,6 @@ export function CalendarPage() {
   return (
     <>
       <MonthPicker value={date} onChange={setDate} mode="month" />
-      <div className="calendar-total">
-        月合計: &yen;{monthTotal.toLocaleString()}
-      </div>
 
       {loading ? (
         <div className="loading-spinner"><div className="spinner"></div></div>
