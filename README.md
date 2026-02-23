@@ -1,5 +1,6 @@
 # Money Diary
 
+![sample](./sample.png)
 シンプルな家計簿 Web アプリ。スマートフォンからの日常入力に最適化しています。
 
 ## 機能
