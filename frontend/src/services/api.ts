@@ -3,6 +3,7 @@ import type { Expense, ExpenseInput, Category, Place, Payer, PayerBalance, Month
 
 // 認証トークン（グローバル）
 let authToken: string | null = null;
+let onAuthError: (() => void) | null = null;
 
 export function setAuthToken(token: string | null): void {
   authToken = token;
@@ -10,6 +11,11 @@ export function setAuthToken(token: string | null): void {
 
 export function getAuthToken(): string | null {
   return authToken;
+}
+
+/** 認証エラー時に呼ばれるコールバックを登録（ログアウト処理用） */
+export function setOnAuthError(callback: (() => void) | null): void {
+  onAuthError = callback;
 }
 
 // ===== キャッシュ =====
@@ -75,6 +81,7 @@ async function callApi<T>(action: string, params: Record<string, unknown> = {}):
 
   if (!response.ok) {
     if (response.status === 401 || response.status === 403) {
+      onAuthError?.();
       throw new Error('AUTH_ERROR:' + (data.error || 'Unauthorized'));
     }
     throw new Error(data.error || `HTTP error: ${response.status}`);
@@ -82,6 +89,7 @@ async function callApi<T>(action: string, params: Record<string, unknown> = {}):
 
   if (!data.success) {
     if (data.error === 'Unauthorized' || data.error === 'このアカウントでは利用できません') {
+      onAuthError?.();
       throw new Error('AUTH_ERROR:' + data.error);
     }
     throw new Error(data.error || 'APIエラーが発生しました');

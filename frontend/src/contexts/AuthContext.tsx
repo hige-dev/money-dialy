@@ -1,7 +1,7 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import type { User, Role } from '../types';
 import { isAllowedEmail } from '../config';
-import { setAuthToken, usersApi } from '../services/api';
+import { setAuthToken, setOnAuthError, usersApi } from '../services/api';
 
 interface AuthContextType {
   user: User | null;
@@ -34,11 +34,7 @@ function isSessionExpired(): boolean {
 }
 
 async function fetchRole(): Promise<Role> {
-  try {
-    return await usersApi.getMyRole();
-  } catch {
-    return 'user';
-  }
+  return await usersApi.getMyRole();
 }
 
 export function AuthProvider({ children }: AuthProviderProps) {
@@ -61,7 +57,17 @@ export function AuthProvider({ children }: AuthProviderProps) {
             setAuthToken(null);
           } else {
             setAuthToken(storedToken);
-            const role = await fetchRole();
+            let role: Role = 'user';
+            try {
+              role = await fetchRole();
+            } catch {
+              // トークンが無効（署名鍵ローテーション等）→ セッションをクリア
+              localStorage.removeItem(STORAGE_KEY);
+              localStorage.removeItem(TOKEN_KEY);
+              localStorage.removeItem(LOGIN_TIME_KEY);
+              setAuthToken(null);
+              return;
+            }
             const restored = { ...(JSON.parse(storedUser) as User), role };
             setUser(restored);
             setToken(storedToken);
@@ -73,6 +79,9 @@ export function AuthProvider({ children }: AuthProviderProps) {
       } catch (e) {
         console.error('Failed to restore auth state:', e);
         setAuthToken(null);
+        localStorage.removeItem(STORAGE_KEY);
+        localStorage.removeItem(TOKEN_KEY);
+        localStorage.removeItem(LOGIN_TIME_KEY);
       } finally {
         setIsLoading(false);
       }
@@ -94,7 +103,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
       }
 
       setAuthToken(credential);
-      const role = await fetchRole();
+      let role: Role = 'user';
+      try {
+        role = await fetchRole();
+      } catch {
+        // ロール取得失敗時はデフォルト
+      }
       const newUser: User = { email, name, picture, role };
       setUser(newUser);
       setToken(credential);
@@ -109,6 +123,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = useCallback(() => {
     setAuthToken(null);
+    setOnAuthError(null);
     setUser(null);
     setToken(null);
     setError(null);
@@ -116,6 +131,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(LOGIN_TIME_KEY);
   }, []);
+
+  // 認証済みの間、API の AUTH_ERROR で自動ログアウトする
+  useEffect(() => {
+    if (user) {
+      setOnAuthError(logout);
+    }
+    return () => setOnAuthError(null);
+  }, [user, logout]);
 
   return (
     <AuthContext.Provider value={{ user, token, isLoading, error, login, logout }}>
