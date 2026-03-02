@@ -124,6 +124,7 @@ type RecurringExpense struct {
 	Payer            string `json:"payer"`
 	Place            string `json:"place"`
 	Memo             string `json:"memo"`
+	Visibility       string `json:"visibility"`       // "public" | "summary" | "private"（空="" は "public" 扱い）
 	Frequency        string `json:"frequency"`        // "monthly" | "bimonthly" | "yearly"
 	DayOfMonth       int    `json:"dayOfMonth"`       // 1-31
 	RepeatMonth      int    `json:"repeatMonth"`      // 1-12（yearly のみ）
@@ -142,6 +143,7 @@ type RecurringExpenseInput struct {
 	Payer       string `json:"payer"`
 	Place       string `json:"place"`
 	Memo        string `json:"memo"`
+	Visibility  string `json:"visibility"`
 	Frequency   string `json:"frequency"`
 	DayOfMonth  int    `json:"dayOfMonth"`
 	RepeatMonth int    `json:"repeatMonth"`

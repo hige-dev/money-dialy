@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { recurringApi, categoriesApi, placesApi, payersApi, expensesApi } from '../services/api';
-import type { RecurringExpense, RecurringExpenseInput, Category, Place, Payer } from '../types';
+import type { RecurringExpense, RecurringExpenseInput, Category, Place, Payer, Visibility } from '../types';
 
 const MONTHS = ['1月', '2月', '3月', '4月', '5月', '6月', '7月', '8月', '9月', '10月', '11月', '12月'];
 
@@ -34,6 +34,7 @@ function RecurringModal({ initial, categories, places, payers, onSave, onClose }
   const [payer, setPayer] = useState(initial?.payer || (payers[0]?.name ?? ''));
   const [place, setPlace] = useState(initial?.place || '');
   const [memo, setMemo] = useState(initial?.memo || '');
+  const [visibility, setVisibility] = useState<Visibility>((initial?.visibility || 'public') as Visibility);
   const [frequency, setFrequency] = useState<'monthly' | 'bimonthly' | 'yearly'>(initial?.frequency || 'monthly');
   const [dayOfMonth, setDayOfMonth] = useState(initial ? String(initial.dayOfMonth) : '1');
   const [repeatMonth, setRepeatMonth] = useState(initial ? String(initial.repeatMonth) : '1');
@@ -48,6 +49,7 @@ function RecurringModal({ initial, categories, places, payers, onSave, onClose }
       payer,
       place,
       memo,
+      visibility,
       frequency,
       dayOfMonth: Number(dayOfMonth),
       repeatMonth: frequency === 'yearly' ? Number(repeatMonth) : 0,
@@ -144,6 +146,15 @@ function RecurringModal({ initial, categories, places, payers, onSave, onClose }
             onChange={(e) => setMemo(e.target.value)}
             placeholder="メモ（任意）"
           />
+        </div>
+
+        <div className="modal-field">
+          <label>公開設定</label>
+          <select value={visibility} onChange={(e) => setVisibility(e.target.value as Visibility)}>
+            <option value="public">公開</option>
+            <option value="summary">金額のみ</option>
+            <option value="private">自分のみ</option>
+          </select>
         </div>
 
         <div className="modal-field-row">
@@ -257,6 +268,7 @@ export function RecurringPage() {
         amount: item.amount,
         memo: item.memo,
         place: item.place,
+        visibility: (item.visibility || 'public') as Visibility,
       });
       setToast(`${catNameMap.get(item.category) || item.category} ¥${item.amount.toLocaleString()} を登録しました`);
     } catch (e) {

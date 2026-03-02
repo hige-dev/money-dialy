@@ -576,6 +576,7 @@ type recurringItem struct {
 	Payer            string `dynamodbav:"payer"`
 	Place            string `dynamodbav:"place"`
 	Memo             string `dynamodbav:"memo"`
+	Visibility       string `dynamodbav:"visibility"`
 	Frequency        string `dynamodbav:"frequency"`
 	DayOfMonth       int    `dynamodbav:"dayOfMonth"`
 	RepeatMonth      int    `dynamodbav:"repeatMonth"`
@@ -595,6 +596,7 @@ func (item *recurringItem) toModel() model.RecurringExpense {
 		Payer:            item.Payer,
 		Place:            item.Place,
 		Memo:             item.Memo,
+		Visibility:       item.Visibility,
 		Frequency:        item.Frequency,
 		DayOfMonth:       item.DayOfMonth,
 		RepeatMonth:      item.RepeatMonth,
@@ -634,6 +636,7 @@ func (c *Client) PutRecurringExpense(ctx context.Context, r *model.RecurringExpe
 		Payer:            r.Payer,
 		Place:            r.Place,
 		Memo:             r.Memo,
+		Visibility:       r.Visibility,
 		Frequency:        r.Frequency,
 		DayOfMonth:       r.DayOfMonth,
 		RepeatMonth:      r.RepeatMonth,

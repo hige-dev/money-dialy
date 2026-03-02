@@ -111,6 +111,7 @@ export interface RecurringExpense {
   payer: string;
   place: string;
   memo: string;
+  visibility: string;
   frequency: 'monthly' | 'bimonthly' | 'yearly';
   dayOfMonth: number;
   repeatMonth: number;
@@ -129,6 +130,7 @@ export interface RecurringExpenseInput {
   payer: string;
   place: string;
   memo: string;
+  visibility?: Visibility;
   frequency: 'monthly' | 'bimonthly' | 'yearly';
   dayOfMonth: number;
   repeatMonth: number;

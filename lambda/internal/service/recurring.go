@@ -31,6 +31,10 @@ func CreateRecurringExpense(ctx context.Context, client *dynamo.Client, input *m
 		return nil, apperror.New("年間定期支出の場合、月（1-12）は必須です")
 	}
 
+	if !ValidateVisibility(input.Visibility) {
+		return nil, apperror.New("visibility は public, summary, private のいずれかを指定してください")
+	}
+
 	now := time.Now().UTC().Format(time.RFC3339)
 	r := &model.RecurringExpense{
 		ID:          uuid.New().String(),
@@ -39,6 +43,7 @@ func CreateRecurringExpense(ctx context.Context, client *dynamo.Client, input *m
 		Payer:       input.Payer,
 		Place:       input.Place,
 		Memo:        input.Memo,
+		Visibility:  input.Visibility,
 		Frequency:   input.Frequency,
 		DayOfMonth:  input.DayOfMonth,
 		RepeatMonth: input.RepeatMonth,
@@ -79,12 +84,17 @@ func UpdateRecurringExpense(ctx context.Context, client *dynamo.Client, id strin
 		return nil, apperror.WithStatus(404, "定期支出テンプレートが見つかりません")
 	}
 
+	if !ValidateVisibility(input.Visibility) {
+		return nil, apperror.New("visibility は public, summary, private のいずれかを指定してください")
+	}
+
 	now := time.Now().UTC().Format(time.RFC3339)
 	found.Category = input.Category
 	found.Amount = input.Amount
 	found.Payer = input.Payer
 	found.Place = input.Place
 	found.Memo = input.Memo
+	found.Visibility = input.Visibility
 	found.Frequency = input.Frequency
 	found.DayOfMonth = input.DayOfMonth
 	found.RepeatMonth = input.RepeatMonth
@@ -146,12 +156,13 @@ func ProcessRecurringExpenses(ctx context.Context, client *dynamo.Client, userEm
 
 		// 支出を作成（CreateExpense 内でバックアップも実行される）
 		_, err := CreateExpense(ctx, client, &model.ExpenseInput{
-			Date:     date,
-			Payer:    t.Payer,
-			Category: t.Category,
-			Amount:   t.Amount,
-			Memo:     t.Memo,
-			Place:    t.Place,
+			Date:       date,
+			Payer:      t.Payer,
+			Category:   t.Category,
+			Amount:     t.Amount,
+			Memo:       t.Memo,
+			Place:      t.Place,
+			Visibility: t.Visibility,
 		}, userEmail)
 		if err != nil {
 			return created, fmt.Errorf("定期支出 %s の作成に失敗: %w", t.ID, err)
