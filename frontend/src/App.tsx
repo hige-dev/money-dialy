@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { GoogleOAuthProvider } from '@react-oauth/google';
+import { GoogleOAuthProvider, useGoogleOneTapLogin, type CredentialResponse } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import { LoginButton } from './components/LoginButton';
 import { LoadingSpinner } from './components/LoadingSpinner';
@@ -14,6 +14,23 @@ import { BulkExpensePage } from './pages/BulkExpensePage';
 import { config } from './config';
 import './App.css';
 
+function TokenRefresher() {
+  const { login } = useAuth();
+
+  useGoogleOneTapLogin({
+    onSuccess: (response: CredentialResponse) => {
+      if (response.credential) {
+        login(response.credential);
+      }
+    },
+    onError: () => {},
+    auto_select: true,
+    disabled: false,
+  });
+
+  return null;
+}
+
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, isLoading } = useAuth();
 
@@ -25,7 +42,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <LoginButton />;
   }
 
-  return <>{children}</>;
+  return (
+    <>
+      <TokenRefresher />
+      {children}
+    </>
+  );
 }
 
 function AdminRoute({ children }: { children: React.ReactNode }) {

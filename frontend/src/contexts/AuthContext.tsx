@@ -17,7 +17,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const STORAGE_KEY = 'money_diary_auth_user';
 const TOKEN_KEY = 'money_diary_auth_token';
 const LOGIN_TIME_KEY = 'money_diary_login_time';
-const SESSION_MAX_AGE_MS = 30 * 24 * 60 * 60 * 1000; // 30日
+const SESSION_MAX_AGE_MS = 90 * 24 * 60 * 60 * 1000; // 90日
 
 interface AuthProviderProps {
   children: ReactNode;
