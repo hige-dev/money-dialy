@@ -14,8 +14,17 @@ import { BulkExpensePage } from './pages/BulkExpensePage';
 import { config } from './config';
 import './App.css';
 
+const TOKEN_REFRESH_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000; // 7日
+
+function isTokenStale(): boolean {
+  const loginTime = localStorage.getItem('money_diary_login_time');
+  if (!loginTime) return true;
+  return Date.now() - Number(loginTime) >= TOKEN_REFRESH_THRESHOLD_MS;
+}
+
 function TokenRefresher() {
   const { login } = useAuth();
+  const needsRefresh = isTokenStale();
 
   useGoogleOneTapLogin({
     onSuccess: (response: CredentialResponse) => {
@@ -25,7 +34,7 @@ function TokenRefresher() {
     },
     onError: () => {},
     auto_select: true,
-    disabled: false,
+    disabled: !needsRefresh,
   });
 
   return null;
