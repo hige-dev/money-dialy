@@ -4,7 +4,7 @@ import type { ChartOptions } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import { MonthPicker } from '../components/MonthPicker';
 import { summaryApi, payersApi, expensesApi, categoriesApi } from '../services/api';
-import type { MonthlySummary, YearlySummary, Payer, PayerBalance, CategorySummary, Expense, Category } from '../types';
+import type { MonthlySummary, YearlySummary, Payer, PayerBalance, Expense, Category } from '../types';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
@@ -270,14 +270,14 @@ export function SummaryPage() {
     );
   }
 
-  const categories = summary.byCategory || [];
+  const categorySummaries = summary.byCategory || [];
 
   // 円グラフデータ
   const doughnutData = {
-    labels: categories.map((c: CategorySummary) => c.category),
+    labels: categorySummaries.map((c) => c.category),
     datasets: [{
-      data: categories.map((c: CategorySummary) => c.amount),
-      backgroundColor: categories.map((c: CategorySummary) => c.color),
+      data: categorySummaries.map((c) => c.amount),
+      backgroundColor: categorySummaries.map((c) => c.color),
       borderWidth: 1,
       borderColor: '#fff',
     }],
@@ -430,7 +430,7 @@ export function SummaryPage() {
             </button>
           </div>
 
-          {breakdownTab === 'category' && categories.map((cat) => {
+          {breakdownTab === 'category' && categorySummaries.map((cat) => {
             const percent = summary.total > 0
               ? ((cat.amount / summary.total) * 100).toFixed(1)
               : '0.0';
