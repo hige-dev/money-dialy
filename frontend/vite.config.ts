@@ -59,7 +59,7 @@ function lambdaProxy(functionName: string): Plugin {
             res.writeHead(500, { 'Content-Type': 'application/json' })
             res.end(JSON.stringify({ success: false, error: String(e) }))
           } finally {
-            try { unlinkSync(outFile) } catch {}
+            try { unlinkSync(outFile) } catch { /* ignore cleanup errors */ }
           }
         })
       })
