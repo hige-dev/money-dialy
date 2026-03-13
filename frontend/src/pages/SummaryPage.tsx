@@ -3,8 +3,8 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearSca
 import type { ChartOptions } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import { MonthPicker } from '../components/MonthPicker';
-import { summaryApi, payersApi, expensesApi } from '../services/api';
-import type { MonthlySummary, YearlySummary, Payer, PayerBalance, CategorySummary, Expense } from '../types';
+import { summaryApi, payersApi, expensesApi, categoriesApi } from '../services/api';
+import type { MonthlySummary, YearlySummary, Payer, PayerBalance, CategorySummary, Expense, Category } from '../types';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
 
@@ -164,6 +164,7 @@ export function SummaryPage() {
   const [selectedPayer, setSelectedPayer] = useState('');
   const [payerBalance, setPayerBalance] = useState<PayerBalance | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedChart, setExpandedChart] = useState<'doughnut' | 'bar' | null>(null);
   const [filterCount, setFilterCount] = useState(0);
@@ -176,9 +177,10 @@ export function SummaryPage() {
 
   const month = getMonth(date);
 
-  // 支払元一覧を取得
+  // 支払元・カテゴリ一覧を取得
   useEffect(() => {
     payersApi.getAll().then(setPayers).catch(console.error);
+    categoriesApi.getAll().then(setCategories).catch(console.error);
   }, []);
 
   const loadData = useCallback(async () => {
@@ -220,11 +222,15 @@ export function SummaryPage() {
     return yearly ? buildStackedBarData(yearly) : null;
   }, [yearly]);
 
-  // 場所別集計
+  // 場所別集計（isExpense=true のカテゴリのみ）
+  const expenseCategories = useMemo(
+    () => new Set(categories.filter((c) => c.isExpense).map((c) => c.id)),
+    [categories],
+  );
   const placeRanking = useMemo(() => {
-    const filtered = selectedPayer
-      ? expenses.filter((e) => e.payer === selectedPayer)
-      : expenses;
+    const filtered = expenses
+      .filter((e) => expenseCategories.has(e.category))
+      .filter((e) => !selectedPayer || e.payer === selectedPayer);
     const map = new Map<string, number>();
     for (const e of filtered) {
       const place = e.place || '未設定';
@@ -234,7 +240,7 @@ export function SummaryPage() {
     return Array.from(map.entries())
       .map(([place, amount]) => ({ place, amount, percent: total > 0 ? (amount / total) * 100 : 0 }))
       .sort((a, b) => b.amount - a.amount);
-  }, [expenses, selectedPayer]);
+  }, [expenses, selectedPayer, expenseCategories]);
 
   // 拡大/縮小時・データ変更時にChart.jsのレイアウト再計算＆右端スクロール
   useEffect(() => {
