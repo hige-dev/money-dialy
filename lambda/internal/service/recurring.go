@@ -116,7 +116,8 @@ func DeleteRecurringExpense(ctx context.Context, client *dynamo.Client, id strin
 
 // ProcessRecurringExpenses は当月の定期支出を自動登録する
 func ProcessRecurringExpenses(ctx context.Context, client *dynamo.Client, userEmail string) (int, error) {
-	now := time.Now()
+	jst := time.FixedZone("JST", 9*60*60)
+	now := time.Now().In(jst)
 	currentMonth := fmt.Sprintf("%04d-%02d", now.Year(), now.Month())
 
 	templates, err := client.GetRecurringExpenses(ctx)
@@ -147,7 +148,7 @@ func ProcessRecurringExpenses(ctx context.Context, client *dynamo.Client, userEm
 		// 日付を決定（月末日に丸め）
 		y := now.Year()
 		m := now.Month()
-		lastDay := time.Date(y, m+1, 0, 0, 0, 0, 0, time.UTC).Day()
+		lastDay := time.Date(y, m+1, 0, 0, 0, 0, 0, jst).Day()
 		day := t.DayOfMonth
 		if day > lastDay {
 			day = lastDay
