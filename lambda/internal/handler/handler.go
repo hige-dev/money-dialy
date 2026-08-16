@@ -60,9 +60,19 @@ func errorResponse(statusCode int, errMsg string, requestOrigin string) events.A
 	return jsonResponse(statusCode, model.APIResponse{Success: false, Error: errMsg}, requestOrigin)
 }
 
+func getHeader(headers map[string]string, key string) string {
+	lowerKey := strings.ToLower(key)
+	for k, v := range headers {
+		if strings.ToLower(k) == lowerKey {
+			return v
+		}
+	}
+	return ""
+}
+
 // Handle は Lambda ハンドラー
 func Handle(ctx context.Context, event events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
-	origin := event.Headers["origin"]
+	origin := getHeader(event.Headers, "origin")
 
 	// CORS preflight
 	if event.RequestContext.HTTP.Method == "OPTIONS" {
@@ -82,8 +92,41 @@ func Handle(ctx context.Context, event events.APIGatewayV2HTTPRequest) (events.A
 		return errorResponse(400, "リクエストの解析に失敗しました", origin), nil
 	}
 
-	// 認証
-	token := event.Headers["x-auth-token"]
+	// DynamoDB クライアント初期化
+	client, err := dynamo.NewClient(ctx)
+	if err != nil {
+		log.Printf("DynamoDB client error: %v", err)
+		return errorResponse(500, "サーバーエラーが発生しました", origin), nil
+	}
+
+	// Webhook 認証の判定
+	webhookSecretHeader := getHeader(event.Headers, "x-webhook-secret")
+	expectedSecret := os.Getenv("WEBHOOK_SECRET")
+	if expectedSecret != "" && webhookSecretHeader == expectedSecret {
+		// Webhook 経由の処理
+		if req.Action == "webhookGmail" || req.Gmail != nil {
+			if req.Gmail == nil {
+				return errorResponse(400, "gmail ペイロードは必須です", origin), nil
+			}
+			// システムユーザーとして登録
+			defaultUser := os.Getenv("WEBHOOK_USER_EMAIL")
+			if defaultUser == "" {
+				defaultUser = "system@gmail-webhook"
+			}
+			result, err := service.ProcessGmailWebhook(ctx, client, req.Gmail, defaultUser)
+			if err != nil {
+				if appErr, ok := err.(*apperror.AppError); ok {
+					return errorResponse(appErr.StatusCode, appErr.Message, origin), nil
+				}
+				log.Printf("Webhook error: %v", err)
+				return errorResponse(500, "サーバーエラーが発生しました", origin), nil
+			}
+			return successResponse(result, origin), nil
+		}
+	}
+
+	// トークン認証 (通常のフロントエンド用)
+	token := getHeader(event.Headers, "x-auth-token")
 	if token == "" {
 		return errorResponse(401, "Token required", origin), nil
 	}
@@ -92,13 +135,6 @@ func Handle(ctx context.Context, event events.APIGatewayV2HTTPRequest) (events.A
 	if err != nil {
 		log.Printf("Token verification failed: %v", err)
 		return errorResponse(401, "Unauthorized", origin), nil
-	}
-
-	// DynamoDB クライアント初期化
-	client, err := dynamo.NewClient(ctx)
-	if err != nil {
-		log.Printf("DynamoDB client error: %v", err)
-		return errorResponse(500, "サーバーエラーが発生しました", origin), nil
 	}
 
 	// ユーザー登録確認（メールベース認証）

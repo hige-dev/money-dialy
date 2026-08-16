@@ -30,6 +30,10 @@ Parameters:
     Type: String
     Description: Allowed CORS origin (e.g. https://your-domain.com)
     Default: '*'
+  WebhookSecret:
+    Type: String
+    Description: Secret key for Gmail Webhook authentication
+    Default: ''
 
 Globals:
   Function:
@@ -119,6 +123,7 @@ Resources:
           GCP_SERVICE_ACCOUNT_EMAIL: !Ref GcpServiceAccountEmail
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
           ALLOWED_ORIGIN: !Ref AllowedOrigin
+          WEBHOOK_SECRET: !Ref WebhookSecret
     Metadata:
       BuildMethod: makefile
 

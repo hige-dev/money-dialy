@@ -186,17 +186,27 @@ type APIResponse struct {
 	Error   string `json:"error,omitempty"`
 }
 
+// WebhookGmailRequest は GAS から送信される Gmail Webhook のペイロード
+type WebhookGmailRequest struct {
+	MessageID string `json:"messageId"`
+	Date      string `json:"date"`
+	Subject   string `json:"subject"`
+	Body      string `json:"body"`
+	From      string `json:"from"`
+}
+
 // ActionRequest はリクエストボディ
 type ActionRequest struct {
-	Action  string        `json:"action"`
-	Month   string        `json:"month,omitempty"`
-	Year    string        `json:"year,omitempty"`
-	ID      string        `json:"id,omitempty"`
-	Payer   string        `json:"payer,omitempty"`
+	Action           string                 `json:"action"`
+	Month            string                 `json:"month,omitempty"`
+	Year             string                 `json:"year,omitempty"`
+	ID               string                 `json:"id,omitempty"`
+	Payer            string                 `json:"payer,omitempty"`
 	Expense          *ExpenseInput          `json:"expense,omitempty"`
 	Expenses         []ExpenseInput         `json:"expenses,omitempty"`
 	RecurringExpense *RecurringExpenseInput `json:"recurringExpense,omitempty"`
 	Category         *CategoryInput         `json:"category,omitempty"`
 	Place            *PlaceInput            `json:"place,omitempty"`
 	PayerData        *PayerInput            `json:"payerData,omitempty"`
+	Gmail            *WebhookGmailRequest   `json:"gmail,omitempty"`
 }
