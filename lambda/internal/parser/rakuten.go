@@ -8,6 +8,32 @@ import (
 	"money-diary/internal/model"
 )
 
+func init() {
+	RegisterParser(&RakutenCardParser{})
+}
+
+// RakutenCardParser は楽天カードの利用通知メールパーサー
+type RakutenCardParser struct{}
+
+func (p *RakutenCardParser) Name() string {
+	return "楽天カード"
+}
+
+func (p *RakutenCardParser) CanParse(from, subject, body string) bool {
+	trimmedSubject := strings.TrimSpace(subject)
+	return (strings.Contains(from, "mail.rakuten-card.co.jp") || strings.Contains(from, "rakuten-card")) &&
+		(trimmedSubject == "カード利用のお知らせ(家族会員ご利用分)" || trimmedSubject == "カード利用のお知らせ(本人ご利用分)")
+}
+
+func (p *RakutenCardParser) Parse(subject, body string) ([]model.ExpenseInput, error) {
+	trimmedSubject := strings.TrimSpace(subject)
+	defaultPayer := "家族カード"
+	if trimmedSubject == "カード利用のお知らせ(本人ご利用分)" {
+		defaultPayer = "ジョー"
+	}
+	return ParseRakutenCardEmail(body, defaultPayer, "未分類"), nil
+}
+
 // RakutenCardItem は楽天カードメールから抽出した単一明細
 type RakutenCardItem struct {
 	Date   string `json:"date"`   // YYYY-MM-DD
