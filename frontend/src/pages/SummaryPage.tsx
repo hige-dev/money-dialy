@@ -148,10 +148,14 @@ function buildStackedBarOptions(selectedRef: React.RefObject<Set<number>>, onFil
       y: {
         stacked: true,
         beginAtZero: true,
+        position: 'right', // Move Y-axis to the right side
         ticks: {
           callback: (value) => `\u00a5${Number(value).toLocaleString()}`,
         },
       },
+    },
+    layout: {
+      padding: { right: 40 }, // Add right‑side margin for the axis
     },
   };
 }

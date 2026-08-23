@@ -1,5 +1,5 @@
 import { config } from '../config';
-import type { Expense, ExpenseInput, Category, Place, Payer, PayerBalance, MonthlySummary, YearlySummary, ApiResponse, Role, RecurringExpense, RecurringExpenseInput, CategoryInput, PlaceInput, PayerInput } from '../types';
+import type { Expense, ExpenseInput, Category, Place, Payer, PayerBalance, MonthlySummary, YearlySummary, ApiResponse, Role, RecurringExpense, RecurringExpenseInput, CategoryInput, PlaceInput, PayerInput, EmailMapping, EmailMappingInput } from '../types';
 
 // 認証トークン（グローバル）
 let authToken: string | null = null;
@@ -264,5 +264,36 @@ export const recurringApi = {
   async delete(id: string): Promise<void> {
     await callApi<void>('deleteRecurringExpense', { id });
     cacheInvalidate('master:recurring');
+  },
+};
+
+// メールマッピングAPI
+export const mappingsApi = {
+  async getAll(): Promise<EmailMapping[]> {
+    return callApi<EmailMapping[]>('getAllMappings');
+  },
+
+  async create(input: EmailMappingInput): Promise<EmailMapping> {
+    return callApi<EmailMapping>('createMapping', {
+      type: input.type,
+      identifier: input.identifier,
+      payer: input.payer,
+      category: input.category,
+      comment: input.comment,
+    });
+  },
+
+  async update(type: string, identifier: string, input: EmailMappingInput): Promise<EmailMapping> {
+    return callApi<EmailMapping>('updateMapping', {
+      type,
+      identifier,
+      payer: input.payer,
+      category: input.category,
+      comment: input.comment,
+    });
+  },
+
+  async delete(type: string, identifier: string): Promise<void> {
+    await callApi<void>('deleteMapping', { type, identifier });
   },
 };

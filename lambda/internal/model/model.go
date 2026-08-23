@@ -197,16 +197,21 @@ type WebhookGmailRequest struct {
 
 // ActionRequest はリクエストボディ
 type ActionRequest struct {
-	Action           string                 `json:"action"`
-	Month            string                 `json:"month,omitempty"`
-	Year             string                 `json:"year,omitempty"`
-	ID               string                 `json:"id,omitempty"`
-	Payer            string                 `json:"payer,omitempty"`
-	Expense          *ExpenseInput          `json:"expense,omitempty"`
-	Expenses         []ExpenseInput         `json:"expenses,omitempty"`
-	RecurringExpense *RecurringExpenseInput `json:"recurringExpense,omitempty"`
-	Category         *CategoryInput         `json:"category,omitempty"`
-	Place            *PlaceInput            `json:"place,omitempty"`
-	PayerData        *PayerInput            `json:"payerData,omitempty"`
-	Gmail            *WebhookGmailRequest   `json:"gmail,omitempty"`
+	Action            string                 `json:"action"`
+	Month             string                 `json:"month,omitempty"`
+	Year              string                 `json:"year,omitempty"`
+	ID                string                 `json:"id,omitempty"`
+	Payer             string                 `json:"payer,omitempty"`
+	Expense           *ExpenseInput          `json:"expense,omitempty"`
+	Expenses          []ExpenseInput         `json:"expenses,omitempty"`
+	RecurringExpense  *RecurringExpenseInput `json:"recurringExpense,omitempty"`
+	Category          *CategoryInput         `json:"category,omitempty"`
+	Place             *PlaceInput            `json:"place,omitempty"`
+	PayerData         *PayerInput            `json:"payerData,omitempty"`
+	Gmail             *WebhookGmailRequest   `json:"gmail,omitempty"`
+	MappingType       string                 `json:"type,omitempty"`
+	MappingIdentifier string                 `json:"identifier,omitempty"`
+	MappingPayer      *string                `json:"payer,omitempty"`
+	MappingCategory   *string                `json:"category,omitempty"`
+	MappingComment    string                 `json:"comment,omitempty"`
 }

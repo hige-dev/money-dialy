@@ -108,6 +108,7 @@ func Handle(ctx context.Context, event events.APIGatewayV2HTTPRequest) (events.A
 			if req.Gmail == nil {
 				return errorResponse(400, "gmail ペイロードは必須です", origin), nil
 			}
+			log.Printf("[Webhook] Processing Gmail webhook, messageId: %s, subject: %s", req.Gmail.MessageID, req.Gmail.Subject)
 			// システムユーザーとして登録
 			defaultUser := os.Getenv("WEBHOOK_USER_EMAIL")
 			if defaultUser == "" {
@@ -121,6 +122,7 @@ func Handle(ctx context.Context, event events.APIGatewayV2HTTPRequest) (events.A
 				log.Printf("Webhook error: %v", err)
 				return errorResponse(500, "サーバーエラーが発生しました", origin), nil
 			}
+			log.Printf("[Webhook] Successfully processed messageId: %s, result: %+v", req.Gmail.MessageID, result)
 			return successResponse(result, origin), nil
 		}
 	}
@@ -255,6 +257,35 @@ func handleAction(ctx context.Context, client *dynamo.Client, req *model.ActionR
 			return nil, apperror.New("id は必須です")
 		}
 		return nil, service.DeleteRecurringExpense(ctx, client, req.ID)
+
+	case "getAllMappings":
+		return service.GetAllMappings(ctx, client)
+	case "createMapping":
+		// Expect Mapping fields in request
+		m := &model.EmailMapping{
+			Type:       req.MappingType,
+			Identifier: req.MappingIdentifier,
+			Payer:      req.MappingPayer,
+			Category:   req.MappingCategory,
+			Comment:    req.MappingComment,
+		}
+		return service.CreateMapping(ctx, client, m)
+	case "updateMapping":
+		// Require type and identifier in request to identify the mapping
+		if req.MappingType == "" || req.MappingIdentifier == "" {
+			return nil, apperror.New("type と identifier は必須です")
+		}
+		m := &model.EmailMapping{
+			Payer:    req.MappingPayer,
+			Category: req.MappingCategory,
+			Comment:  req.MappingComment,
+		}
+		return service.UpdateMapping(ctx, client, req.MappingType, req.MappingIdentifier, m)
+	case "deleteMapping":
+		if req.MappingType == "" || req.MappingIdentifier == "" {
+			return nil, apperror.New("type と identifier は必須です")
+		}
+		return nil, service.DeleteMapping(ctx, client, req.MappingType, req.MappingIdentifier)
 
 	case "processRecurring":
 		count, err := service.ProcessRecurringExpenses(ctx, client, userEmail)

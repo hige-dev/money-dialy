@@ -189,3 +189,5 @@ export interface Config {
   apiUrl: string;
   allowedEmails: string[];
 }
+
+export * from './emailMapping';

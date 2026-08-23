@@ -16,17 +16,41 @@ func ProcessGmailWebhook(ctx context.Context, client *dynamo.Client, req *model.
 		return nil, apperror.New("メール本文(body)が空です")
 	}
 
-	var inputs []model.ExpenseInput
-
-	// 送信元や件名で判定（楽天カード）
-	if strings.Contains(req.From, "rakuten-card") || strings.Contains(req.Subject, "楽天カード") || strings.Contains(req.Body, "楽天カード") {
-		inputs = parser.ParseRakutenCardEmail(req.Body, "楽天カード", "未分類")
-	} else {
-		return nil, apperror.New("未対応のカード利用通知メールです")
+	// 登録済みのパーサーから自動判定して抽出
+	inputs, cardName, err := parser.ParseEmail(req.From, req.Subject, req.Body)
+	if err != nil {
+		return nil, apperror.Newf("パースエラー (%s): %v", cardName, err)
 	}
 
 	if len(inputs) == 0 {
 		return []model.Expense{}, nil
+	}
+
+	// メールマッピングの適用 (件名・キーワード)
+	mappings, err := client.ListEmailMappings(ctx)
+	if err == nil && len(mappings) > 0 {
+		for i := range inputs {
+			for _, m := range mappings {
+				matched := false
+				if m.Type == "subject" {
+					if strings.Contains(req.Subject, m.Identifier) {
+						matched = true
+					}
+				} else if m.Type == "keyword" {
+					if strings.Contains(inputs[i].Place, m.Identifier) || strings.Contains(req.Body, m.Identifier) {
+						matched = true
+					}
+				}
+				if matched {
+					if m.Payer != nil && *m.Payer != "" {
+						inputs[i].Payer = *m.Payer
+					}
+					if m.Category != nil && *m.Category != "" {
+						inputs[i].Category = *m.Category
+					}
+				}
+			}
+		}
 	}
 
 	// 一括登録
