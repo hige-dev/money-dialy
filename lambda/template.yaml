@@ -94,7 +94,7 @@ Resources:
       Architectures:
         - x86_64
       FunctionUrlConfig:
-        AuthType: AWS_IAM
+        AuthType: NONE
       Events:
         MonthlyRecurring:
           Type: Schedule
@@ -126,6 +126,15 @@ Resources:
           WEBHOOK_SECRET: !Ref WebhookSecret
     Metadata:
       BuildMethod: makefile
+
+  MoneyDiaryApiFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref MoneyDiaryApiFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: cloudfront.amazonaws.com
+      FunctionUrlAuthType: AWS_IAM
+      SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/E3373CPSSJATAD"
 
 Outputs:
   FunctionUrl:

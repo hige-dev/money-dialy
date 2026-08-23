@@ -33,8 +33,14 @@ function processRakutenCardEmails() {
     return;
   }
 
-  // 未読の楽天カードメールを検索
-  const query = 'label:unread (from:info@mail.rakuten-card.co.jp OR subject:"カード利用のお知らせ")';
+  // 対象の件名を配列で定義
+  const TARGET_SUBJECTS = [
+    'カード利用のお知らせ(家族会員ご利用分)',
+    'カード利用のお知らせ(本人ご利用分)'
+  ];
+
+  // OR条件を用いてGmail内を検索
+  const query = 'label:unread from:info@mail.rakuten-card.co.jp (subject:"' + TARGET_SUBJECTS[0] + '" OR subject:"' + TARGET_SUBJECTS[1] + '")';
   const threads = GmailApp.search(query, 0, 20);
   const labelProcessed = getOrCreateLabel('処理済み');
 
@@ -44,6 +50,12 @@ function processRakutenCardEmails() {
     const messages = thread.getMessages();
     for (const message of messages) {
       if (!message.isUnread()) continue;
+
+      // 件名がいずれかの対象件名と完全一致するものだけ処理
+      const subject = message.getSubject().trim();
+      if (!TARGET_SUBJECTS.includes(subject)) {
+        continue;
+      }
 
       const payload = {
         action: 'webhookGmail',
@@ -70,14 +82,28 @@ function processRakutenCardEmails() {
         const response = UrlFetchApp.fetch(config.backendUrl, options);
         const code = response.getResponseCode();
         const resText = response.getContentText();
+        let isSuccess = false;
+        let jsonRes = null;
 
         if (code === 200) {
-          Logger.log(`[OK] Message ID: ${message.getId()} - ${message.getSubject()}`);
+          try {
+            jsonRes = JSON.parse(resText);
+            if (jsonRes && jsonRes.success === true) {
+              isSuccess = true;
+            }
+          } catch (err) {
+            // JSON 以外のレスポンス（HTML等）は失敗扱い
+            isSuccess = false;
+          }
+        }
+
+        if (isSuccess) {
+          Logger.log(`[OK] Message ID: ${message.getId()} - ${message.getSubject()} | Res: ${resText}`);
           message.markRead();
           thread.addLabel(labelProcessed);
           successCount++;
         } else {
-          Logger.log(`[FAIL] Code: ${code}, Body: ${resText}`);
+          Logger.log(`[FAIL] HTTP: ${code}, ValidJSON: ${jsonRes !== null}, Res: ${resText.substring(0, 150)}...`);
         }
       } catch (e) {
         Logger.log(`[ERROR] Fetch failed: ${e.toString()}`);
