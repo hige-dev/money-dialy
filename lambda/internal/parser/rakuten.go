@@ -26,12 +26,7 @@ func (p *RakutenCardParser) CanParse(from, subject, body string) bool {
 }
 
 func (p *RakutenCardParser) Parse(subject, body string) ([]model.ExpenseInput, error) {
-	trimmedSubject := strings.TrimSpace(subject)
-	defaultPayer := "家族カード"
-	if trimmedSubject == "カード利用のお知らせ(本人ご利用分)" {
-		defaultPayer = "ジョー"
-	}
-	return ParseRakutenCardEmail(body, defaultPayer, "未分類"), nil
+	return ParseRakutenCardEmail(body, "楽天カード", "未分類"), nil
 }
 
 // RakutenCardItem は楽天カードメールから抽出した単一明細

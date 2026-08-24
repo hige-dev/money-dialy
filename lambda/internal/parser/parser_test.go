@@ -28,8 +28,8 @@ func TestParseEmail_RakutenCard_FamilyMember(t *testing.T) {
 	if len(expenses) != 1 {
 		t.Fatalf("expected 1 expense, got %d", len(expenses))
 	}
-	if expenses[0].Payer != "家族カード" {
-		t.Errorf("expected payer 家族カード, got %s", expenses[0].Payer)
+	if expenses[0].Payer != "楽天カード" {
+		t.Errorf("expected payer 楽天カード, got %s", expenses[0].Payer)
 	}
 }
 
@@ -57,8 +57,8 @@ func TestParseEmail_RakutenCard_Principal(t *testing.T) {
 	if len(expenses) != 1 {
 		t.Fatalf("expected 1 expense, got %d", len(expenses))
 	}
-	if expenses[0].Payer != "ジョー" {
-		t.Errorf("expected payer ジョー, got %s", expenses[0].Payer)
+	if expenses[0].Payer != "楽天カード" {
+		t.Errorf("expected payer 楽天カード, got %s", expenses[0].Payer)
 	}
 }
 
