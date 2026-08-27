@@ -47,7 +47,7 @@ export function ExpenseInputPage() {
   const selectedCat = categories.find((c) => c.id === selectedCategory);
   const isPersonalCategory = !!selectedCat?.ownerEmail;
 
-  const canSubmit = selectedCategory && selectedPayer && Number(amount) > 0;
+  const canSubmit = selectedPayer && Number(amount) > 0; // category optional
 
   const handleSubmit = async () => {
     if (!canSubmit) return;
@@ -58,7 +58,7 @@ export function ExpenseInputPage() {
       await expensesApi.create({
         date,
         payer: selectedPayer,
-        category: selectedCategory,
+        category: selectedCategory || undefined,
         amount: numAmount,
         memo,
         place: selectedPlace === '__other__' ? customPlace : selectedPlace,
