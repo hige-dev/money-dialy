@@ -3,10 +3,101 @@ import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearSca
 import type { ChartOptions } from 'chart.js';
 import { Doughnut, Bar } from 'react-chartjs-2';
 import { MonthPicker } from '../components/MonthPicker';
-import { summaryApi, payersApi, expensesApi, categoriesApi } from '../services/api';
-import type { MonthlySummary, YearlySummary, Payer, PayerBalance, Expense, Category } from '../types';
+import { summaryApi, payersApi, expensesApi, categoriesApi, placesApi } from '../services/api';
+import type { MonthlySummary, YearlySummary, Payer, PayerBalance, Expense, Category, Place, Visibility } from '../types';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
+
+interface EditModalProps {
+  expense: Expense;
+  categories: Category[];
+  places: Place[];
+  payers: Payer[];
+  onSave: (id: string, data: { date: string; payer: string; category: string; amount: number; memo: string; place: string; visibility?: Visibility }) => void;
+  onDelete: (id: string) => void;
+  onClose: () => void;
+}
+
+function EditModal({ expense, categories, places, payers, onSave, onDelete, onClose }: EditModalProps) {
+  const [date, setDate] = useState(expense.date);
+  const [payer, setPayer] = useState(expense.payer);
+  const [category, setCategory] = useState(expense.category);
+  const [amount, setAmount] = useState(String(expense.amount));
+  const [place, setPlace] = useState(expense.place);
+  const [memo, setMemo] = useState(expense.memo);
+  const [visibility, setVisibility] = useState<Visibility>((expense.visibility || 'public') as Visibility);
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>支出を編集</h3>
+          <button className="modal-close-btn" onClick={onClose}>&times;</button>
+        </div>
+        <div className="modal-field">
+          <label>日付</label>
+          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+        </div>
+        <div className="modal-field">
+          <label>支払元</label>
+          <select value={payer} onChange={(e) => setPayer(e.target.value)}>
+            <option value="">未選択</option>
+            {payers.map((p) => (
+              <option key={p.id} value={p.name}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="modal-field">
+          <label>カテゴリ</label>
+          <select value={category} onChange={(e) => setCategory(e.target.value)}>
+            {categories.map((c) => (
+              <option key={c.id} value={c.id}>{c.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="modal-field">
+          <label>金額</label>
+          <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
+        </div>
+        <div className="modal-field">
+          <label>場所</label>
+          <select value={place} onChange={(e) => setPlace(e.target.value)}>
+            <option value="">未選択</option>
+            {places.map((p) => (
+              <option key={p.id} value={p.name}>{p.name}</option>
+            ))}
+          </select>
+        </div>
+        <div className="modal-field">
+          <label>メモ</label>
+          <input type="text" value={memo} onChange={(e) => setMemo(e.target.value)} />
+        </div>
+        <div className="modal-field">
+          <label>公開設定</label>
+          <select value={visibility} onChange={(e) => setVisibility(e.target.value as Visibility)}>
+            <option value="public">全員に公開</option>
+            <option value="summary">金額のみ公開</option>
+            <option value="private">自分のみ</option>
+          </select>
+        </div>
+        <div className="modal-actions">
+          <button
+            className="modal-btn modal-btn-danger"
+            onClick={() => { if (confirm('削除しますか？')) onDelete(expense.id); }}
+          >
+            削除
+          </button>
+          <button
+            className="modal-btn modal-btn-primary"
+            onClick={() => onSave(expense.id, { date, payer, category, amount: Number(amount), memo, place, visibility })}
+          >
+            保存
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function todayString(): string {
   const d = new Date();
@@ -148,10 +239,14 @@ function buildStackedBarOptions(selectedRef: React.RefObject<Set<number>>, onFil
       y: {
         stacked: true,
         beginAtZero: true,
+        position: 'right', // Move Y-axis to the right side
         ticks: {
           callback: (value) => `\u00a5${Number(value).toLocaleString()}`,
         },
       },
+    },
+    layout: {
+      padding: { right: 40 }, // Add right‑side margin for the axis
     },
   };
 }
@@ -165,6 +260,9 @@ export function SummaryPage() {
   const [payerBalance, setPayerBalance] = useState<PayerBalance | null>(null);
   const [expenses, setExpenses] = useState<Expense[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [places, setPlaces] = useState<Place[]>([]);
+  const [editTarget, setEditTarget] = useState<Expense | null>(null);
+  const [toast, setToast] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [expandedChart, setExpandedChart] = useState<'doughnut' | 'bar' | null>(null);
   const [filterCount, setFilterCount] = useState(0);
@@ -177,11 +275,19 @@ export function SummaryPage() {
 
   const month = getMonth(date);
 
-  // 支払元・カテゴリ一覧を取得
+  // 支払元・カテゴリ・場所一覧を取得
   useEffect(() => {
     payersApi.getAll().then(setPayers).catch(console.error);
     categoriesApi.getAll().then(setCategories).catch(console.error);
+    placesApi.getAll().then(setPlaces).catch(console.error);
   }, []);
+
+  useEffect(() => {
+    if (toast) {
+      const timer = setTimeout(() => setToast(null), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [toast]);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -210,6 +316,30 @@ export function SummaryPage() {
       setLoading(false);
     }
   }, [month, selectedPayer, payers]);
+
+  const handleSave = async (id: string, data: { date: string; payer: string; category: string; amount: number; memo: string; place: string; visibility?: Visibility }) => {
+    try {
+      await expensesApi.update(id, data);
+      setEditTarget(null);
+      setToast('更新しました');
+      await loadData();
+    } catch (e) {
+      console.error(e);
+      setToast('更新に失敗しました');
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await expensesApi.delete(id);
+      setEditTarget(null);
+      setToast('削除しました');
+      await loadData();
+    } catch (e) {
+      console.error(e);
+      setToast('削除に失敗しました');
+    }
+  };
 
   useEffect(() => {
     loadData();
@@ -460,7 +590,12 @@ export function SummaryPage() {
                       const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
                       const dateLabel = `${d.getMonth() + 1}/${d.getDate()} (${weekdays[d.getDay()]})`;
                       return (
-                        <div key={e.id} className="expense-item">
+                        <div
+                          key={e.id}
+                          className="expense-item"
+                          style={{ cursor: 'pointer' }}
+                          onClick={() => setEditTarget(e)}
+                        >
                           <div className="expense-item-color" style={{ background: cat.color }} />
                           <div className="expense-item-body">
                             <div className="expense-item-top">
@@ -496,6 +631,20 @@ export function SummaryPage() {
       {/* 最下部の月移動 */}
       <MonthPicker value={date} onChange={setDate} mode="month" />
 
+      {editTarget && (
+        <EditModal
+          expense={editTarget}
+          categories={categories}
+          places={places}
+          payers={payers}
+          onSave={handleSave}
+          onDelete={handleDelete}
+          onClose={() => setEditTarget(null)}
+        />
+      )}
+
+      {toast && <div className="toast">{toast}</div>}
     </>
   );
 }
+

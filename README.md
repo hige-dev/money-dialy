@@ -11,7 +11,8 @@
 - **集計** — カテゴリ別ドーナツチャート、月別推移グラフ、前月比・前年比
 - **支払元フィルタ** — 支払元ごとの集計と残額管理
 - **定期支出** — 毎月/隔月の自動登録（EventBridge スケジュール）
-- **設定画面** — カテゴリ・場所・支払元のマスタ管理
+- **メール自動取込・自動分類** — Gmail のカード利用通知を自動取得し、件名・本文キーワード・場所に応じて自動分類（[詳細ドキュメント](docs/gmail-import.md)）
+- **設定画面** — カテゴリ・場所・支払元・メール分類ルールのマスタ管理
 - **認証** — Google ログイン、許可メールアドレスのみアクセス可
 
 ## 構成
@@ -22,6 +23,10 @@ Browser (React 19 + TypeScript)
 CloudFront
   ├─ /api/* → Lambda Function URL (Go) → DynamoDB
   └─ /*     → S3 (静的ファイル)
+
+Gmail → GAS (Google Apps Script)
+  ↓ Webhook (HMAC Secret)
+Lambda Function URL (Go) → DynamoDB
 ```
 
 | レイヤー | 技術 |
@@ -29,6 +34,7 @@ CloudFront
 | フロントエンド | React 19, TypeScript, Vite, Chart.js |
 | バックエンド | Go, AWS Lambda (provided.al2023) |
 | データベース | DynamoDB (オンデマンド) |
+| 外部連携 | Google Apps Script (Gmail 取込) |
 | 認証 | Google OAuth 2.0 (ID Token 検証) |
 | インフラ | CloudFront + S3 + Lambda Function URL (OAC) |
 | IaC | AWS SAM |
@@ -43,6 +49,7 @@ CloudFront
 │   │   ├── auth/           #   Google ID Token 検証
 │   │   ├── dynamo/         #   DynamoDB クライアント
 │   │   ├── service/        #   ビジネスロジック
+│   │   ├── parser/         #   カードメールパーサー
 │   │   ├── model/          #   構造体定義
 │   │   └── apperror/       #   エラー型
 │   ├── template.yaml       #   SAM テンプレート
@@ -53,8 +60,11 @@ CloudFront
 │       ├── components/     #   共通コンポーネント
 │       ├── contexts/       #   認証 Context
 │       └── services/       #   API クライアント
+├── gas/                    # Gmail 自動取込用 Google Apps Script
+├── docs/                   # 機能・設定詳細ドキュメント
 └── scripts/                # デプロイスクリプト
 ```
+
 
 ## セットアップ
 

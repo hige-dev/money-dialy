@@ -1,0 +1,16 @@
+{
+  "name": "money-diary-gas",
+  "version": "1.0.0",
+  "description": "Google Apps Script for Money Diary Gmail Auto Import",
+  "main": "Code.js",
+  "scripts": {
+    "login": "clasp login",
+    "create": "clasp create --title \"MoneyDiary-GmailImport\" --type standalone",
+    "push": "clasp push",
+    "deploy": "clasp deploy",
+    "open": "clasp open"
+  },
+  "devDependencies": {
+    "@google/clasp": "^2.4.2"
+  }
+}

@@ -186,17 +186,34 @@ type APIResponse struct {
 	Error   string `json:"error,omitempty"`
 }
 
+// WebhookGmailRequest は GAS から送信される Gmail Webhook のペイロード
+type WebhookGmailRequest struct {
+	MessageID string `json:"messageId"`
+	Date      string `json:"date"`
+	Subject   string `json:"subject"`
+	Body      string `json:"body"`
+	From      string `json:"from"`
+}
+
 // ActionRequest はリクエストボディ
 type ActionRequest struct {
-	Action  string        `json:"action"`
-	Month   string        `json:"month,omitempty"`
-	Year    string        `json:"year,omitempty"`
-	ID      string        `json:"id,omitempty"`
-	Payer   string        `json:"payer,omitempty"`
-	Expense          *ExpenseInput          `json:"expense,omitempty"`
-	Expenses         []ExpenseInput         `json:"expenses,omitempty"`
-	RecurringExpense *RecurringExpenseInput `json:"recurringExpense,omitempty"`
-	Category         *CategoryInput         `json:"category,omitempty"`
-	Place            *PlaceInput            `json:"place,omitempty"`
-	PayerData        *PayerInput            `json:"payerData,omitempty"`
+	Action            string                 `json:"action"`
+	Month             string                 `json:"month,omitempty"`
+	Year              string                 `json:"year,omitempty"`
+	ID                string                 `json:"id,omitempty"`
+	Payer             string                 `json:"payer,omitempty"` // 集計API用
+	Expense           *ExpenseInput          `json:"expense,omitempty"`
+	Expenses          []ExpenseInput         `json:"expenses,omitempty"`
+	RecurringExpense  *RecurringExpenseInput `json:"recurringExpense,omitempty"`
+	Category          *CategoryInput         `json:"category,omitempty"`
+	Place             *PlaceInput            `json:"place,omitempty"`
+	PayerData         *PayerInput            `json:"payerData,omitempty"`
+	Gmail             *WebhookGmailRequest   `json:"gmail,omitempty"`
+	MappingType       string                 `json:"type,omitempty"`
+	MappingIdentifier string                 `json:"identifier,omitempty"`
+	MappingPayer      *string                `json:"mappingPayer,omitempty"`
+	MappingCategory   *string                `json:"mappingCategory,omitempty"`
+	MappingPlace      *string                `json:"mappingPlace,omitempty"`
+	MappingExclude    *bool                  `json:"mappingExclude,omitempty"`
+	MappingComment    string                 `json:"comment,omitempty"`
 }

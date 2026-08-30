@@ -30,6 +30,10 @@ Parameters:
     Type: String
     Description: Allowed CORS origin (e.g. https://your-domain.com)
     Default: '*'
+  WebhookSecret:
+    Type: String
+    Description: Secret key for Gmail Webhook authentication
+    Default: ''
 
 Globals:
   Function:
@@ -90,7 +94,7 @@ Resources:
       Architectures:
         - x86_64
       FunctionUrlConfig:
-        AuthType: AWS_IAM
+        AuthType: NONE
       Events:
         MonthlyRecurring:
           Type: Schedule
@@ -119,8 +123,18 @@ Resources:
           GCP_SERVICE_ACCOUNT_EMAIL: !Ref GcpServiceAccountEmail
           GOOGLE_CLIENT_ID: !Ref GoogleClientId
           ALLOWED_ORIGIN: !Ref AllowedOrigin
+          WEBHOOK_SECRET: !Ref WebhookSecret
     Metadata:
       BuildMethod: makefile
+
+  MoneyDiaryApiFunctionUrlPermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      FunctionName: !Ref MoneyDiaryApiFunction
+      Action: lambda:InvokeFunctionUrl
+      Principal: cloudfront.amazonaws.com
+      FunctionUrlAuthType: AWS_IAM
+      SourceArn: !Sub "arn:aws:cloudfront::${AWS::AccountId}:distribution/E3373CPSSJATAD"
 
 Outputs:
   FunctionUrl:

@@ -411,6 +411,9 @@ export function SettingsPage() {
         <button className="recurring-link-btn" onClick={() => navigate('/bulk')} style={{ marginTop: 8 }}>
           一括登録
         </button>
+        <button className="recurring-link-btn" onClick={() => navigate('/mappings')} style={{ marginTop: 8 }}>
+          メール自動分類マッピング
+        </button>
       </div>
 
       {/* タブ */}
