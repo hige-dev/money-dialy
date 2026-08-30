@@ -5,7 +5,9 @@ export interface EmailMapping {
   identifier: string; // raw subject or keyword
   payer?: string;
   category?: string;
+  place?: string;
   comment?: string;
+  exclude?: boolean; // true = exclude from auto registration
 }
 
 export interface EmailMappingInput {
@@ -13,5 +15,8 @@ export interface EmailMappingInput {
   identifier: string;
   payer?: string;
   category?: string;
+  place?: string;
   comment?: string;
+  exclude?: boolean;
 }
+

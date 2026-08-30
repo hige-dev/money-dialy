@@ -11,5 +11,8 @@ type EmailMapping struct {
     Identifier string  `json:"identifier"` // the raw subject or keyword
     Payer      *string `json:"payer,omitempty"`
     Category   *string `json:"category,omitempty"`
+    Place      *string `json:"place,omitempty"`
     Comment    string  `json:"comment,omitempty"`
+    Exclude    bool   `json:"exclude,omitempty"`
 }
+

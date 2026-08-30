@@ -42,13 +42,21 @@ func ProcessGmailWebhook(ctx context.Context, client *dynamo.Client, req *model.
 					}
 				}
 				if matched {
+					if m.Exclude {
+						// マッピングが除外対象の場合は何もしない
+						continue
+					}
 					if m.Payer != nil && *m.Payer != "" {
 						inputs[i].Payer = *m.Payer
 					}
 					if m.Category != nil && *m.Category != "" {
 						inputs[i].Category = *m.Category
 					}
+					if m.Place != nil && *m.Place != "" {
+						inputs[i].Place = *m.Place
+					}
 				}
+
 			}
 		}
 	}

@@ -20,7 +20,7 @@ export interface Expense {
 export interface ExpenseInput {
   date: string;
   payer: string;
-  category: string;
+  category?: string;
   amount: number;
   memo: string;
   place: string;

@@ -201,7 +201,7 @@ type ActionRequest struct {
 	Month             string                 `json:"month,omitempty"`
 	Year              string                 `json:"year,omitempty"`
 	ID                string                 `json:"id,omitempty"`
-	Payer             string                 `json:"payer,omitempty"`
+	Payer             string                 `json:"payer,omitempty"` // 集計API用
 	Expense           *ExpenseInput          `json:"expense,omitempty"`
 	Expenses          []ExpenseInput         `json:"expenses,omitempty"`
 	RecurringExpense  *RecurringExpenseInput `json:"recurringExpense,omitempty"`
@@ -211,7 +211,9 @@ type ActionRequest struct {
 	Gmail             *WebhookGmailRequest   `json:"gmail,omitempty"`
 	MappingType       string                 `json:"type,omitempty"`
 	MappingIdentifier string                 `json:"identifier,omitempty"`
-	MappingPayer      *string                `json:"payer,omitempty"`
-	MappingCategory   *string                `json:"category,omitempty"`
+	MappingPayer      *string                `json:"mappingPayer,omitempty"`
+	MappingCategory   *string                `json:"mappingCategory,omitempty"`
+	MappingPlace      *string                `json:"mappingPlace,omitempty"`
+	MappingExclude    *bool                  `json:"mappingExclude,omitempty"`
 	MappingComment    string                 `json:"comment,omitempty"`
 }

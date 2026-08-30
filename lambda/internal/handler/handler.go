@@ -267,6 +267,8 @@ func handleAction(ctx context.Context, client *dynamo.Client, req *model.ActionR
 			Identifier: req.MappingIdentifier,
 			Payer:      req.MappingPayer,
 			Category:   req.MappingCategory,
+			Place:      req.MappingPlace,
+			Exclude:    req.MappingExclude != nil && *req.MappingExclude,
 			Comment:    req.MappingComment,
 		}
 		return service.CreateMapping(ctx, client, m)
@@ -278,9 +280,12 @@ func handleAction(ctx context.Context, client *dynamo.Client, req *model.ActionR
 		m := &model.EmailMapping{
 			Payer:    req.MappingPayer,
 			Category: req.MappingCategory,
+			Place:    req.MappingPlace,
+			Exclude:  req.MappingExclude != nil && *req.MappingExclude,
 			Comment:  req.MappingComment,
 		}
 		return service.UpdateMapping(ctx, client, req.MappingType, req.MappingIdentifier, m)
+
 	case "deleteMapping":
 		if req.MappingType == "" || req.MappingIdentifier == "" {
 			return nil, apperror.New("type と identifier は必須です")

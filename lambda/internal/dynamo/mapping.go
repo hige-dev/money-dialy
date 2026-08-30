@@ -19,6 +19,8 @@ type EmailMappingItem struct {
 	MappingIdentifier string  `dynamodbav:"mappingIdentifier"`
 	Payer             *string `dynamodbav:"payer,omitempty"`
 	Category          *string `dynamodbav:"category,omitempty"`
+	Place             *string `dynamodbav:"place,omitempty"`
+	Exclude           bool    `dynamodbav:"exclude,omitempty"`
 	Comment           string  `dynamodbav:"comment,omitempty"`
 }
 
@@ -32,6 +34,8 @@ func (c *Client) PutEmailMapping(ctx context.Context, m model.EmailMapping) erro
 		MappingIdentifier: m.Identifier,
 		Payer:             m.Payer,
 		Category:          m.Category,
+		Place:             m.Place,
+		Exclude:           m.Exclude,
 		Comment:           m.Comment,
 	}
 	av, err := attributevalue.MarshalMap(item)
@@ -71,6 +75,7 @@ func (c *Client) GetEmailMappingBySubject(ctx context.Context, subject string) (
 		Identifier: itm.MappingIdentifier,
 		Payer:      itm.Payer,
 		Category:   itm.Category,
+		Place:      itm.Place,
 		Comment:    itm.Comment,
 	}
 	return &em, nil
@@ -94,11 +99,14 @@ func (c *Client) ListEmailMappings(ctx context.Context) ([]model.EmailMapping, e
 			Identifier: itm.MappingIdentifier,
 			Payer:      itm.Payer,
 			Category:   itm.Category,
+			Place:      itm.Place,
+			Exclude:    itm.Exclude,
 			Comment:    itm.Comment,
 		}
 	}
 	return results, nil
 }
+
 
 // DeleteEmailMapping removes a mapping by its type and identifier.
 func (c *Client) DeleteEmailMapping(ctx context.Context, typ, identifier string) error {

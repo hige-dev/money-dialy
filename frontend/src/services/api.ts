@@ -277,8 +277,10 @@ export const mappingsApi = {
     return callApi<EmailMapping>('createMapping', {
       type: input.type,
       identifier: input.identifier,
-      payer: input.payer,
-      category: input.category,
+      mappingExclude: input.exclude,
+      mappingPayer: input.payer,
+      mappingCategory: input.category,
+      mappingPlace: input.place,
       comment: input.comment,
     });
   },
@@ -287,8 +289,9 @@ export const mappingsApi = {
     return callApi<EmailMapping>('updateMapping', {
       type,
       identifier,
-      payer: input.payer,
-      category: input.category,
+      mappingPayer: input.payer,
+      mappingCategory: input.category,
+      mappingPlace: input.place,
       comment: input.comment,
     });
   },
@@ -297,3 +300,4 @@ export const mappingsApi = {
     await callApi<void>('deleteMapping', { type, identifier });
   },
 };
+
