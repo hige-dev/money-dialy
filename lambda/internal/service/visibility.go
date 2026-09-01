@@ -43,7 +43,7 @@ func FilterExpensesForUser(expenses []model.Expense, userEmail string) []model.E
 				CreatedAt:  e.CreatedAt,
 				UpdatedAt:  e.UpdatedAt,
 			})
-		// private: 除外
+			// private: 除外
 		}
 	}
 	return result

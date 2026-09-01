@@ -96,17 +96,17 @@ type MonthComparison struct {
 
 // MonthlySummary は月別集計
 type MonthlySummary struct {
-	Month             string           `json:"month"`
-	Total             int              `json:"total"`
+	Month             string            `json:"month"`
+	Total             int               `json:"total"`
 	ByCategory        []CategorySummary `json:"byCategory"`
-	PreviousMonth     *MonthComparison `json:"previousMonth"`
-	PreviousYearMonth *MonthComparison `json:"previousYearMonth"`
+	PreviousMonth     *MonthComparison  `json:"previousMonth"`
+	PreviousYearMonth *MonthComparison  `json:"previousYearMonth"`
 }
 
 // MonthData は年間集計の月別データ
 type MonthData struct {
-	Month      string           `json:"month"`
-	Total      int              `json:"total"`
+	Month      string            `json:"month"`
+	Total      int               `json:"total"`
 	ByCategory []CategorySummary `json:"byCategory"`
 }
 
@@ -124,12 +124,12 @@ type RecurringExpense struct {
 	Payer            string `json:"payer"`
 	Place            string `json:"place"`
 	Memo             string `json:"memo"`
-	Visibility       string `json:"visibility"`       // "public" | "summary" | "private"（空="" は "public" 扱い）
-	Frequency        string `json:"frequency"`        // "monthly" | "bimonthly" | "yearly"
-	DayOfMonth       int    `json:"dayOfMonth"`       // 1-31
-	RepeatMonth      int    `json:"repeatMonth"`      // 1-12（yearly のみ）
-	StartMonth       string `json:"startMonth"`       // "YYYY-MM"（空=制限なし）
-	EndMonth         string `json:"endMonth"`         // "YYYY-MM"（空=制限なし）
+	Visibility       string `json:"visibility"`  // "public" | "summary" | "private"（空="" は "public" 扱い）
+	Frequency        string `json:"frequency"`   // "monthly" | "bimonthly" | "yearly"
+	DayOfMonth       int    `json:"dayOfMonth"`  // 1-31
+	RepeatMonth      int    `json:"repeatMonth"` // 1-12（yearly のみ）
+	StartMonth       string `json:"startMonth"`  // "YYYY-MM"（空=制限なし）
+	EndMonth         string `json:"endMonth"`    // "YYYY-MM"（空=制限なし）
 	IsActive         bool   `json:"isActive"`
 	LastCreatedMonth string `json:"lastCreatedMonth"` // "YYYY-MM"
 	CreatedAt        string `json:"createdAt"`

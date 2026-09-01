@@ -39,7 +39,7 @@ func buildExternalAccountJSON() ([]byte, error) {
 		"subject_token_type": "urn:ietf:params:aws:token-type:aws4_request",
 		"token_url":          "https://sts.googleapis.com/v1/token",
 		"credential_source": map[string]any{
-			"environment_id":              "aws1",
+			"environment_id":                 "aws1",
 			"regional_cred_verification_url": "https://sts.{region}.amazonaws.com?Action=GetCallerIdentity&Version=2011-06-15",
 		},
 		"service_account_impersonation_url": fmt.Sprintf(

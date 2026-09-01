@@ -1,7 +1,8 @@
 // CSV → DynamoDB インポートスクリプト
 //
 // 使い方:
-//   go run ./cmd/import-csv -table money-diary-expenses -file ~/Downloads/expenses.csv
+//
+//	go run ./cmd/import-csv -table money-diary-expenses -file ~/Downloads/expenses.csv
 package main
 
 import (

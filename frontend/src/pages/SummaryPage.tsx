@@ -50,6 +50,7 @@ function EditModal({ expense, categories, places, payers, onSave, onDelete, onCl
         <div className="modal-field">
           <label>カテゴリ</label>
           <select value={category} onChange={(e) => setCategory(e.target.value)}>
+            <option value="">未選択</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
             ))}

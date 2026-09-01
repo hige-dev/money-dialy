@@ -27,9 +27,11 @@ func ProcessGmailWebhook(ctx context.Context, client *dynamo.Client, req *model.
 	}
 
 	// メールマッピングの適用 (件名・キーワード)
+	var activeInputs []model.ExpenseInput
 	mappings, err := client.ListEmailMappings(ctx)
 	if err == nil && len(mappings) > 0 {
 		for i := range inputs {
+			excluded := false
 			for _, m := range mappings {
 				matched := false
 				if m.Type == "subject" {
@@ -43,8 +45,8 @@ func ProcessGmailWebhook(ctx context.Context, client *dynamo.Client, req *model.
 				}
 				if matched {
 					if m.Exclude {
-						// マッピングが除外対象の場合は何もしない
-						continue
+						excluded = true
+						break
 					}
 					if m.Payer != nil && *m.Payer != "" {
 						inputs[i].Payer = *m.Payer
@@ -56,13 +58,21 @@ func ProcessGmailWebhook(ctx context.Context, client *dynamo.Client, req *model.
 						inputs[i].Place = *m.Place
 					}
 				}
-
+			}
+			if !excluded {
+				activeInputs = append(activeInputs, inputs[i])
 			}
 		}
+	} else {
+		activeInputs = inputs
+	}
+
+	if len(activeInputs) == 0 {
+		return []model.Expense{}, nil
 	}
 
 	// 一括登録
-	created, err := BulkCreateExpenses(ctx, client, inputs, defaultUserEmail)
+	created, err := BulkCreateExpenses(ctx, client, activeInputs, defaultUserEmail)
 	if err != nil {
 		return nil, err
 	}

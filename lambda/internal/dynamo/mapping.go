@@ -107,7 +107,6 @@ func (c *Client) ListEmailMappings(ctx context.Context) ([]model.EmailMapping, e
 	return results, nil
 }
 
-
 // DeleteEmailMapping removes a mapping by its type and identifier.
 func (c *Client) DeleteEmailMapping(ctx context.Context, typ, identifier string) error {
 	id := fmt.Sprintf("%s#%s", typ, identifier)
@@ -123,4 +122,3 @@ func (c *Client) DeleteEmailMapping(ctx context.Context, typ, identifier string)
 	}
 	return nil
 }
-

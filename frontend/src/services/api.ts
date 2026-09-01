@@ -289,6 +289,7 @@ export const mappingsApi = {
     return callApi<EmailMapping>('updateMapping', {
       type,
       identifier,
+      mappingExclude: input.exclude,
       mappingPayer: input.payer,
       mappingCategory: input.category,
       mappingPlace: input.place,

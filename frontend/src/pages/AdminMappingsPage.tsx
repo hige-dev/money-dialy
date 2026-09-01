@@ -242,6 +242,11 @@ export function AdminMappingsPage() {
                     <span className="settings-item-badge" style={{ backgroundColor: m.type === 'subject' ? '#e0f2fe' : '#fef3c7', color: m.type === 'subject' ? '#0369a1' : '#b45309' }}>
                       {m.type === 'subject' ? '件名' : 'キーワード'}
                     </span>
+                    {m.exclude && (
+                      <span className="settings-item-badge" style={{ backgroundColor: '#fee2e2', color: '#b91c1c' }}>
+                        除外
+                      </span>
+                    )}
                     <span className="settings-item-name" style={{ fontWeight: 600 }}>{m.identifier}</span>
                   </div>
                   <span className="settings-item-meta">
