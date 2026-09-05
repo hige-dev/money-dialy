@@ -87,6 +87,7 @@ function EditModal({ expense, categories, places, payers, onSave, onDelete, onCl
   const [category, setCategory] = useState(expense.category);
   const [amount, setAmount] = useState(String(expense.amount));
   const [place, setPlace] = useState(expense.place);
+  const [customPlace, setCustomPlace] = useState('');
   const [memo, setMemo] = useState(expense.memo);
   const [visibility, setVisibility] = useState<Visibility>((expense.visibility || 'public') as Visibility);
 
@@ -125,12 +126,22 @@ function EditModal({ expense, categories, places, payers, onSave, onDelete, onCl
         </div>
         <div className="modal-field">
           <label>場所</label>
-          <select value={place} onChange={(e) => setPlace(e.target.value)}>
+          <select value={place} onChange={(e) => { setPlace(e.target.value); if (e.target.value !== '__other__') setCustomPlace(''); }}>
             <option value="">未選択</option>
             {places.map((p) => (
               <option key={p.id} value={p.name}>{p.name}</option>
             ))}
+            <option value="__other__">その他</option>
           </select>
+          {place === '__other__' && (
+            <input
+              type="text"
+              placeholder="場所を入力"
+              value={customPlace}
+              onChange={(e) => setCustomPlace(e.target.value)}
+              style={{ marginTop: '6px' }}
+            />
+          )}
         </div>
         <div className="modal-field">
           <label>メモ</label>
@@ -153,7 +164,7 @@ function EditModal({ expense, categories, places, payers, onSave, onDelete, onCl
           </button>
           <button
             className="modal-btn modal-btn-primary"
-            onClick={() => onSave(expense.id, { date, payer, category, amount: Number(amount), memo, place, visibility })}
+            onClick={() => onSave(expense.id, { date, payer, category, amount: Number(amount), memo, place: place === '__other__' ? customPlace : place, visibility })}
           >
             保存
           </button>
