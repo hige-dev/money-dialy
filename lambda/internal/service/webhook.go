@@ -39,7 +39,7 @@ func ProcessGmailWebhook(ctx context.Context, client *dynamo.Client, req *model.
 						matched = true
 					}
 				} else if m.Type == "keyword" {
-					if strings.Contains(inputs[i].Place, m.Identifier) || strings.Contains(req.Body, m.Identifier) {
+					if strings.Contains(inputs[i].Place, m.Identifier) || strings.Contains(inputs[i].Memo, m.Identifier) {
 						matched = true
 					}
 				}
