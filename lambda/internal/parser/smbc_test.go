@@ -47,6 +47,45 @@ func TestParseSMBCCardEmail(t *testing.T) {
 	}
 }
 
+func TestParseSMBCCardEmail_SingleLineFormat(t *testing.T) {
+	sampleBody := `
+テスト 太郎 様
+
+いつも三井住友カードをご利用いただきありがとうございます。
+Ａｍａｚｏｎマスターについてカードの利用内容をお知らせします。
+
+ご利用内容
+
+
+ご利用日時：2026/09/09 12:52
+ＡＭＡＺＯＮ．ＣＯ．ＪＰ（買物）        1,375円
+
+
+
+
+本メールはカードご利用の承認照会に基づく通知であり、カードのご利用及びご請求を確定するものではございません。
+`
+
+	expenses := ParseSMBCCardEmail(sampleBody, "三井住友カード", "未分類")
+	if len(expenses) != 1 {
+		t.Fatalf("expected 1 expense, got %d", len(expenses))
+	}
+
+	exp := expenses[0]
+	if exp.Date != "2026-09-09" {
+		t.Errorf("expected date 2026-09-09, got %s", exp.Date)
+	}
+	if exp.Place != "AMAZON.CO.JP" {
+		t.Errorf("expected place 'AMAZON.CO.JP', got '%s'", exp.Place)
+	}
+	if exp.Amount != 1375 {
+		t.Errorf("expected amount 1375, got %d", exp.Amount)
+	}
+	if exp.Memo != "三井住友カード (Amazonマスター)" {
+		t.Errorf("expected memo '三井住友カード (Amazonマスター)', got '%s'", exp.Memo)
+	}
+}
+
 func TestSMBCCardParser_CanParse(t *testing.T) {
 	p := &SMBCCardParser{}
 
@@ -58,7 +97,11 @@ func TestSMBCCardParser_CanParse(t *testing.T) {
 	}
 
 	if p.CanParse("other@example.com", subject, "") {
-		t.Errorf("expected CanParse to return false for wrong from")
+		t.Errorf("expected CanParse to return false for wrong from when body has no smbc reference")
+	}
+
+	if !p.CanParse("test-user <test@example.com>", "FW: ご利用のお知らせ【三井住友カード】", "いつも三井住友カードをご利用頂きありがとうございます。") {
+		t.Errorf("expected CanParse to return true for forwarded email with SMBC in body")
 	}
 
 	if p.CanParse(from, "全く別の件名", "") {
