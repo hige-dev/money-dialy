@@ -169,7 +169,7 @@ export function ExpenseListPage() {
   const recentImports = expenses
     .filter((e) => e.createdBy === 'system@gmail-webhook' || e.memo.includes('カード') || e.memo.includes('ペイ'))
     .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
-    .slice(0, 5);
+    .slice(0, 20);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -315,10 +315,13 @@ export function ExpenseListPage() {
                     )}
                   </div>
                 </div>
-                <div className="recent-import-right">
-                  <span className="recent-import-amount">&yen;{item.amount.toLocaleString()}</span>
-                  <span className="recent-import-date">{item.date}</span>
-                </div>
+                    <div className="recent-import-right">
+                      <span className="recent-import-amount">&yen;{item.amount.toLocaleString()}</span>
+                      <span className="recent-import-date">{item.date}</span>
+                      {item.createdAt && item.createdAt !== item.date && (
+                        <span className="recent-import-registered">登録: {new Date(item.createdAt).toLocaleDateString()}</span>
+                      )}
+                    </div>
               </div>
             ))}
           </div>

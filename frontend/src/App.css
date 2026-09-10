@@ -532,6 +532,12 @@
   color: #94a3b8;
 }
 
+.recent-import-registered {
+  font-size: 0.85rem;
+  color: #666;
+  margin-left: 0.5rem;
+}
+
 .expense-date-group {
   margin-top: 12px;
 }

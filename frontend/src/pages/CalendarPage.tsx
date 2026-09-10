@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { MonthPicker } from '../components/MonthPicker';
 import { expensesApi, categoriesApi, placesApi, payersApi } from '../services/api';
 import type { Expense, Category, Place, Payer, Visibility } from '../types';
@@ -185,6 +185,8 @@ export function CalendarPage() {
   const [editTarget, setEditTarget] = useState<Expense | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [tab, setTab] = useState<'shared' | 'personal'>('shared');
+  const [onlyUncategorized, setOnlyUncategorized] = useState(false);
+  const [showRecentImports, setShowRecentImports] = useState(false);
 
   const month = getMonth(date);
   const [yearStr, monthStr] = month.split('-');
@@ -246,9 +248,22 @@ export function CalendarPage() {
     }
   };
 
-  const expenseCategories = new Set(categories.filter((c) => c.isExpense).map((c) => c.id));
-  const colorMap = new Map(categories.map((c) => [c.id, c.color]));
-  const catNameMap = new Map(categories.map((c) => [c.id, c.name]));
+  const expenseCategories = useMemo(() => new Set(categories.filter((c) => c.isExpense).map((c) => c.id)), [categories]);
+  const colorMap = useMemo(() => new Map(categories.map((c) => [c.id, c.color])), [categories]);
+  const catNameMap = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
+
+  // カテゴリが「未分類」または登録済みカテゴリ一覧に存在しないものを未分類と判定
+  const isUncategorized = useCallback((e: Expense) => {
+    return e.category === '未分類' || !catNameMap.has(e.category);
+  }, [catNameMap]);
+
+  // 最近自動取込されたと思われるデータ（system登録 または メモにカード名・自動取込履歴、CreatedAt降順）
+  const recentImports = useMemo(() => {
+    return expenses
+      .filter((e) => e.createdBy === 'system@gmail-webhook' || e.memo.includes('カード') || e.memo.includes('ペイ'))
+      .sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || ''))
+      .slice(0, 20);
+  }, [expenses]);
 
   // カレンダー用
   const days = buildCalendarDays(year, monthNum);
@@ -260,12 +275,19 @@ export function CalendarPage() {
   const todayDay = month === getMonth(today) ? parseInt(today.slice(8, 10), 10) : -1;
 
   // 一覧用
-  const filtered = tab === 'shared'
+  const baseFiltered = tab === 'shared'
     ? expenses.filter(e => !e.visibility || e.visibility === 'public')
     : expenses.filter(e =>
         e.createdBy === user?.email &&
         (e.visibility === 'summary' || e.visibility === 'private')
       );
+
+  const uncategorizedCount = baseFiltered.filter(isUncategorized).length;
+
+  const filtered = onlyUncategorized
+    ? baseFiltered.filter(isUncategorized)
+    : baseFiltered;
+
   const listTotal = filtered.filter((e) => expenseCategories.has(e.category)).reduce((sum, e) => sum + e.amount, 0);
   const grouped = groupByDate(filtered);
 
@@ -327,6 +349,64 @@ export function CalendarPage() {
           <div className="expense-list-total">
             合計: &yen;{listTotal.toLocaleString()}
           </div>
+
+          <div className="expense-list-controls">
+            <button
+              className={`uncategorized-filter-btn ${onlyUncategorized ? 'active' : ''}`}
+              onClick={() => setOnlyUncategorized(!onlyUncategorized)}
+            >
+              <span>未分類のみ</span>
+              {uncategorizedCount > 0 && (
+                <span className="uncategorized-badge">{uncategorizedCount}</span>
+              )}
+            </button>
+
+            {recentImports.length > 0 && (
+              <button
+                className="recent-imports-toggle"
+                onClick={() => setShowRecentImports(!showRecentImports)}
+              >
+                📥 自動取込 ({recentImports.length}件) {showRecentImports ? '▲' : '▼'}
+              </button>
+            )}
+          </div>
+
+          {showRecentImports && recentImports.length > 0 && (
+            <div className="recent-imports-container">
+              <div className="recent-imports-header">
+                <span>📥 最近の自動取込 (最新{recentImports.length}件)</span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: '#166534' }}>タップして分類</span>
+              </div>
+              <div className="recent-imports-list">
+                {recentImports.map((item) => (
+                  <div
+                    key={item.id}
+                    className="recent-import-item"
+                    onClick={() => setEditTarget(item)}
+                  >
+                    <div className="recent-import-left">
+                      <span className="recent-import-title">{item.place || item.memo || '利用通知'}</span>
+                      <div className="recent-import-meta">
+                        <span>{item.payer}</span>
+                        {isUncategorized(item) ? (
+                          <span className="recent-import-tag">未分類</span>
+                        ) : (
+                          <span>{catNameMap.get(item.category) || item.category}</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="recent-import-right">
+                      <span className="recent-import-amount">&yen;{item.amount.toLocaleString()}</span>
+                      <span className="recent-import-date">{item.date}</span>
+                      {item.createdAt && item.createdAt !== item.date && (
+                        <span className="recent-import-registered">登録: {new Date(item.createdAt).toLocaleDateString()}</span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {filtered.length === 0 ? (
             <div className="empty-state"><p>この月のデータはありません</p></div>
