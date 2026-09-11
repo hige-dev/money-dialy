@@ -5,7 +5,6 @@ import (
 	"strconv"
 	"strings"
 
-	"golang.org/x/text/width"
 	"money-diary/internal/model"
 )
 
@@ -91,7 +90,7 @@ func ParseSMBCCardEmail(body string, defaultPayer string, defaultCategory string
 
 	// （買物）等の取引種別を除去
 	rawPlace = reSmbcTransaction.ReplaceAllString(rawPlace, "")
-	placeStr := strings.TrimSpace(width.Fold.String(rawPlace))
+	placeStr := normalizePlace(rawPlace)
 
 	amountClean := strings.ReplaceAll(rawAmount, ",", "")
 	amount, err := strconv.Atoi(amountClean)
@@ -101,9 +100,9 @@ func ParseSMBCCardEmail(body string, defaultPayer string, defaultCategory string
 
 	cardName := ""
 	if cardMatch := reSmbcCard.FindStringSubmatch(body); len(cardMatch) >= 2 {
-		cardName = strings.TrimSpace(width.Fold.String(cardMatch[1]))
+		cardName = normalizePlace(cardMatch[1])
 	} else if cardMatch := reSmbcCardAbout.FindStringSubmatch(body); len(cardMatch) >= 2 {
-		cardName = strings.TrimSpace(width.Fold.String(cardMatch[1]))
+		cardName = normalizePlace(cardMatch[1])
 	}
 
 	payer := defaultPayer

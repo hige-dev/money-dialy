@@ -2,6 +2,10 @@ package parser
 
 import (
 	"fmt"
+	"strings"
+
+	"golang.org/x/text/unicode/norm"
+
 	"money-diary/internal/model"
 )
 
@@ -34,4 +38,9 @@ func ParseEmail(from, subject, body string) ([]model.ExpenseInput, string, error
 		}
 	}
 	return nil, "", fmt.Errorf("対応するカードパーサーが見つかりませんでした (from: %s, subject: %s)", from, subject)
+}
+
+// normalizePlace は店舗名などの文字列を正規化する（全角英数記号→半角、半角カタカナ→全角、前後の空白除去）
+func normalizePlace(s string) string {
+	return strings.TrimSpace(norm.NFKC.String(s))
 }

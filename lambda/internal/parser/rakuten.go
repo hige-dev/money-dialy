@@ -75,7 +75,7 @@ func ParseRakutenCardEmail(body string, defaultPayer string, defaultCategory str
 			Payer:      payer,
 			Category:   category,
 			Amount:     item.Amount,
-			Place:      strings.TrimSpace(item.Place),
+			Place:      normalizePlace(item.Place),
 			Memo:       memo,
 			Visibility: "public",
 		})

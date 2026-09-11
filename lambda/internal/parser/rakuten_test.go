@@ -28,12 +28,19 @@ func TestParseRakutenCardEmail(t *testing.T) {
 ■支払方法: 1回
 ■利用金額: 680 円
 ■支払月: 2026/09
+
+■利用日: 2026/08/07
+■利用先: ｷｸﾞﾅｽｾｷﾕ　ＡＭＡＺＯＮ店
+■利用者: 本人
+■支払方法: 1回
+■利用金額: 3,500 円
+■支払月: 2026/09
 `
 
 	expenses := ParseRakutenCardEmail(sampleBody, "家族カード", "食費")
 
-	if len(expenses) != 3 {
-		t.Fatalf("expected 3 expenses, got %d", len(expenses))
+	if len(expenses) != 4 {
+		t.Fatalf("expected 4 expenses, got %d", len(expenses))
 	}
 
 	// 1件目
@@ -51,5 +58,13 @@ func TestParseRakutenCardEmail(t *testing.T) {
 	}
 	if expenses[0].Memo != "楽天カード (家族)" {
 		t.Errorf("expected memo 楽天カード (家族), got %s", expenses[0].Memo)
+	}
+
+	// 4件目 (半角カタカナ・全角英字の正規化検証)
+	if expenses[3].Place != "キグナスセキユ AMAZON店" {
+		t.Errorf("expected place 'キグナスセキユ AMAZON店', got '%s'", expenses[3].Place)
+	}
+	if expenses[3].Amount != 3500 {
+		t.Errorf("expected amount 3500, got %d", expenses[3].Amount)
 	}
 }
