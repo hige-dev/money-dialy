@@ -17,13 +17,14 @@ type Expense struct {
 
 // ExpenseInput は支出登録・更新のリクエスト
 type ExpenseInput struct {
-	Date       string `json:"date"`
-	Payer      string `json:"payer"`
-	Category   string `json:"category"`
-	Amount     int    `json:"amount"`
-	Memo       string `json:"memo"`
-	Place      string `json:"place"`
-	Visibility string `json:"visibility"`
+	Date         string `json:"date"`
+	Payer        string `json:"payer"`
+	Category     string `json:"category"`
+	Amount       int    `json:"amount"`
+	Memo         string `json:"memo"`
+	Place        string `json:"place"`
+	Visibility   string `json:"visibility"`
+	IsOtherPlace bool   `json:"isOtherPlace"` // true → UI shows "Other + manual input"
 }
 
 // Place は場所マスタ

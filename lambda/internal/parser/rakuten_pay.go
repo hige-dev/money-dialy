@@ -1,9 +1,12 @@
 package parser
 
 import (
+	"mime"
 	"regexp"
 	"strconv"
 	"strings"
+
+	"golang.org/x/text/unicode/norm"
 
 	"money-diary/internal/model"
 )
@@ -21,6 +24,10 @@ func (p *RakutenPayParser) Name() string {
 
 func (p *RakutenPayParser) CanParse(from, subject, body string) bool {
 	trimmedSubject := strings.TrimSpace(subject)
+	// Decode possible MIME encoded-word subject (e.g., "=?utf-8?B?...?=")
+	if decoded, err := new(mime.WordDecoder).DecodeHeader(trimmedSubject); err == nil {
+		trimmedSubject = decoded
+	}
 	return (strings.Contains(from, "no-reply@pay.rakuten.co.jp") || strings.Contains(from, "pay.rakuten.co.jp")) &&
 		(strings.Contains(trimmedSubject, "楽天ペイお支払い完了のお知らせ") || strings.Contains(trimmedSubject, "楽天ペイアプリ"))
 }
@@ -30,13 +37,28 @@ func (p *RakutenPayParser) Parse(subject, body string) ([]model.ExpenseInput, er
 }
 
 var (
-	rePayDate   = regexp.MustCompile(`▼ご利用日時\s*[\r\n]+([0-9]{4}/[0-9]{2}/[0-9]{2})`)
-	rePayPlace  = regexp.MustCompile(`▼ご利用店舗\s*[\r\n]+([^\r\n]+)`)
-	rePayAmount = regexp.MustCompile(`▼決済総額\s*[\r\n]+[￥¥]([0-9,]+)`)
+	rePayDate   = regexp.MustCompile(`(?:▼)?ご利用日時\s*[\r\n]+([0-9]{4}/[0-9]{2}/[0-9]{2})`)
+	rePayPlace  = regexp.MustCompile(`(?:▼)?ご利用店舗\s*[\r\n]+([^\r\n]+)`)
+	rePayAmount = regexp.MustCompile(`(?:▼)?決済総額\s*[\r\n]+[￥¥]([0-9,]+)`)
 )
+
+func normalizeFullHalf(s string) string {
+	var sb strings.Builder
+	for _, r := range s {
+		if r >= 0xFF01 && r <= 0xFF5E {
+			r = r - 0xFEE0
+		}
+		sb.WriteRune(r)
+	}
+	// Use Unicode NFKC to convert half-width Katakana to full-width Katakana
+	converted := norm.NFKC.String(sb.String())
+	// Preserve full-width spaces: replace regular spaces with IDEOGRAPHIC SPACE (U+3000)
+	return strings.ReplaceAll(converted, " ", "\u3000")
+}
 
 // ParseRakutenPayEmail は楽天ペイの決済メール本文をパースして支出データ一覧を返す
 func ParseRakutenPayEmail(body string, defaultPayer string, defaultCategory string) []model.ExpenseInput {
+	body = normalizeFullHalf(body)
 	dateMatch := rePayDate.FindStringSubmatch(body)
 	placeMatch := rePayPlace.FindStringSubmatch(body)
 	amountMatch := rePayAmount.FindStringSubmatch(body)
@@ -64,15 +86,27 @@ func ParseRakutenPayEmail(body string, defaultPayer string, defaultCategory stri
 		category = "未分類"
 	}
 
-	return []model.ExpenseInput{
-		{
-			Date:       dateStr,
-			Payer:      payer,
-			Category:   category,
-			Amount:     amount,
-			Place:      placeStr,
-			Memo:       "楽天ペイ",
-			Visibility: "public",
-		},
+	// Known places (dummy list). In production could be loaded from DB/config.
+	knownPlaces := []string{"ダミー-コンビニ　テスト駅前", "テストストア　テスト駅前"}
+	isOther := true
+	for _, kp := range knownPlaces {
+		if kp == placeStr {
+			isOther = false
+			break
+		}
 	}
+	if isOther {
+		placeStr = "その他"
+	}
+
+	return []model.ExpenseInput{{
+		Date:         dateStr,
+		Payer:        payer,
+		Category:     category,
+		Amount:       amount,
+		Place:        placeStr,
+		Memo:         "楽天ペイ",
+		Visibility:   "public",
+		IsOtherPlace: isOther,
+	}}
 }

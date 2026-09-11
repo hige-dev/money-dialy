@@ -64,6 +64,47 @@ TEST-SLIP-12345678
 	}
 }
 
+func TestParseRakutenPayEmail_WithoutTriangleMarker(t *testing.T) {
+	sampleBody := `
+[楽天ペイ]
+
+楽天ペイお支払い完了のお知らせ
+
+テスト 太郎 様
+いつも楽天ペイアプリをご利用いただき、誠にありがとうございます。
+以下のお支払いが完了いたしましたので、お知らせいたします。
+
+ご利用明細
+ご利用店舗
+テストストア　テスト駅前
+電話番号
+03-0000-0000<tel:03-0000-0000>
+ご利用日時
+2026/09/11(金) 21:04
+伝票番号
+TEST-SLIP-87654321
+決済総額
+¥4,782
+楽天ポイント
+0
+`
+	expenses := ParseRakutenPayEmail(sampleBody, "楽天ペイ", "未分類")
+	if len(expenses) != 1 {
+		t.Fatalf("expected 1 expense, got %d", len(expenses))
+	}
+
+	exp := expenses[0]
+	if exp.Date != "2026-09-11" {
+		t.Errorf("expected date 2026-09-11, got %s", exp.Date)
+	}
+	if exp.Place != "テストストア　テスト駅前" {
+		t.Errorf("expected place 'テストストア　テスト駅前', got '%s'", exp.Place)
+	}
+	if exp.Amount != 4782 {
+		t.Errorf("expected amount 4782, got %d", exp.Amount)
+	}
+}
+
 func TestRakutenPayParser_CanParse(t *testing.T) {
 	p := &RakutenPayParser{}
 
