@@ -50,8 +50,9 @@ function EditModal({ expense, categories, places, payers, onSave, onDelete, onCl
   const [payer, setPayer] = useState(expense.payer);
   const [category, setCategory] = useState(expense.category);
   const [amount, setAmount] = useState(String(expense.amount));
-  const [place, setPlace] = useState(expense.place);
-  const [customPlace, setCustomPlace] = useState('');
+  const isPredefinedPlace = places.some((p) => p.name === expense.place);
+  const [place, setPlace] = useState(!expense.place ? '' : isPredefinedPlace ? expense.place : '__other__');
+  const [customPlace, setCustomPlace] = useState(!expense.place || isPredefinedPlace ? '' : expense.place);
   const [memo, setMemo] = useState(expense.memo);
   const [visibility, setVisibility] = useState<Visibility>((expense.visibility || 'public') as Visibility);
 
