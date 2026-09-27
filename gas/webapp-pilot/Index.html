@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <base target="_top">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#f6f5f0">
+    <?!= include('Styles'); ?>
+  </head>
+  <body>
+    <div class="login-screen" id="login-screen">
+      <div class="login-card">
+        <a class="brand login-brand" href="#" aria-label="Money Diary">
+          <span class="brand-mark" aria-hidden="true">m</span>
+          <span>money<span class="brand-light">diary</span></span>
+        </a>
+        <p class="eyebrow">家族の家計簿</p>
+        <h1>Googleアカウントでログイン</h1>
+        <p class="login-description">登録済みのアカウントでログインすると、家族の支出を閲覧・入力できます。認証はGoogleの画面で行います。</p>
+        <a class="google-login-link" id="google-login-link" href="<?= loginUrl ?>" target="_top" data-enabled="<?= loginUrl ? 'true' : 'false' ?>">Googleアカウントでログイン</a>
+        <p class="login-status" id="login-status" role="status" aria-live="polite"><?= loginMessage ?></p>
+        <button class="secondary-button" type="button" id="retry-login-button" hidden>もう一度確認する</button>
+        <input type="hidden" id="auth-bootstrap" data-session-id="<?= initialSessionId ?>" data-generation="<?= deploymentGeneration ?>">
+        <p class="security-note">利用者の許可確認はサーバーで行います。メールアドレスを入力してログインすることはできません。</p>
+      </div>
+    </div>
+
+    <div class="app-shell family-app" id="app-shell" hidden>
+      <header class="topbar">
+        <a class="brand" href="#summary" aria-label="Money Diary 集計へ" data-view-link="summary">
+          <span class="brand-mark" aria-hidden="true">m</span>
+          <span>money<span class="brand-light">diary</span></span>
+        </a>
+        <div class="account-controls">
+          <span class="account-name" id="account-name"></span>
+          <button class="text-button" type="button" id="logout-button">ログアウト</button>
+        </div>
+      </header>
+
+      <aside class="data-sync-status" id="data-sync-status" role="status" aria-live="polite" hidden>
+        <div><p id="data-sync-message"></p><small id="data-sync-time"></small></div>
+        <button class="secondary-button" type="button" id="retry-data-button" hidden>再確認する</button>
+      </aside>
+
+      <main id="main-content">
+        <section class="view is-active" id="view-summary" aria-labelledby="summary-title">
+          <div class="view-heading heading-row">
+            <div><p class="eyebrow">家族みんなの記録</p><h1 id="summary-title" data-summary-title>今月の支出</h1></div>
+            <span class="user-avatar" id="user-avatar" aria-hidden="true">家</span>
+          </div>
+          <div class="month-switcher" aria-label="集計する月">
+            <button class="round-button month-step" type="button" data-month-step="-1" aria-label="前の月">‹</button>
+            <span class="month-label" data-month-label></span>
+            <button class="round-button month-step" type="button" data-month-step="1" aria-label="次の月">›</button>
+          </div>
+          <div class="filter-row">
+            <label>利用者<select id="filter-member" class="select-input"></select></label>
+            <label>支払元<select id="filter-source" class="select-input"></select></label>
+          </div>
+          <article class="hero-card family-hero">
+            <div class="hero-card-top"><span>家族の支出合計</span><span class="hero-icon" aria-hidden="true">↗</span></div>
+            <p class="hero-amount"><span>¥</span><strong id="summary-total">0</strong></p>
+            <div class="budget-details" id="budget-summary" hidden>
+              <div class="budget-line"><span>月予算 <span id="budget-limit"></span></span><span id="budget-remaining"></span></div>
+              <div class="progress-track" role="progressbar" aria-label="今月の予算使用率" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="budget-progress"><span class="progress-fill"></span></div>
+            </div>
+          </article>
+          <section class="card wallet-card" id="wallet-card" hidden aria-labelledby="wallet-title">
+            <div class="section-title-row"><div><p class="eyebrow">任意の残高管理</p><h2 id="wallet-title">財布の残高</h2></div></div>
+            <div id="wallet-balances" class="wallet-balances"></div>
+          </section>
+          <section class="card category-card" aria-labelledby="category-title">
+            <div class="section-title-row"><div><p class="eyebrow">内訳</p><h2 id="category-title">カテゴリ別</h2></div></div>
+            <div id="category-breakdown" class="category-breakdown"><p class="empty-state">この月の支出はありません。</p></div>
+          </section>
+          <section class="card category-trend-card" aria-labelledby="category-trend-title">
+            <div class="section-title-row"><div><p class="eyebrow">過去12か月</p><h2 id="category-trend-title">カテゴリ別の月推移</h2></div></div>
+            <div id="category-trend-months" class="category-trend-months"></div>
+            <div id="category-trend-legend" class="category-trend-legend"></div>
+          </section>
+          <section class="section-block" aria-labelledby="recent-title">
+            <div class="section-title-row"><div><p class="eyebrow">記録</p><h2 id="recent-title">最近の支出</h2></div><button type="button" class="small-action" data-view-link="input">支出を入力</button></div>
+            <div class="transaction-list" id="recent-transactions"></div>
+          </section>
+        </section>
+
+        <section class="view" id="view-input" aria-labelledby="input-title" hidden>
+          <div class="view-heading"><p class="eyebrow">家族の支出を記録</p><h1 id="input-title">支出を入力</h1></div>
+          <form class="card family-form" id="expense-form">
+            <input type="hidden" name="id">
+            <input type="hidden" name="requestId">
+            <label class="form-field">日付<input class="text-input" type="date" name="date" required></label>
+            <label class="form-field">金額<input class="text-input" type="number" name="amount" min="1" step="1" inputmode="numeric" placeholder="0" required></label>
+            <div class="form-field"><span class="field-label">利用者</span><select class="select-input" name="memberId" required></select></div>
+            <div class="form-field"><span class="field-label">支払元</span><select class="select-input" name="sourceId" required></select></div>
+            <div class="form-field"><span class="field-label">カテゴリ</span><select class="select-input" name="categoryId" required></select></div>
+            <div class="form-field"><span class="field-label">場所</span><select class="select-input" name="placeId"></select></div>
+            <label class="form-field">メモ<input class="text-input" type="text" name="memo" maxlength="200" placeholder="例：スーパーで食材を購入"></label>
+            <p class="settings-help">利用者と支払元は別々に記録します。共有の支出は「共通／家族」を選んでください。</p>
+            <button class="primary-button" type="submit" id="expense-submit">支出を保存</button>
+            <button class="secondary-button" type="button" id="expense-cancel" hidden>編集をやめる</button>
+          </form>
+          <section class="section-block"><div class="section-title-row"><h2>最近の支出</h2></div><div class="transaction-list" id="input-transactions"></div></section>
+        </section>
+
+        <section class="view" id="view-calendar" aria-labelledby="calendar-title" hidden>
+          <div class="view-heading"><p class="eyebrow">日ごとの記録</p><h1 id="calendar-title">カレンダー</h1></div>
+          <div class="month-switcher" aria-label="表示する月">
+            <button class="round-button month-step" type="button" data-month-step="-1" aria-label="前の月">‹</button>
+            <span class="month-label" data-month-label></span>
+            <button class="round-button month-step" type="button" data-month-step="1" aria-label="次の月">›</button>
+          </div>
+          <section class="card calendar-card">
+            <div class="calendar-weekdays" aria-hidden="true"><span>日</span><span>月</span><span>火</span><span>水</span><span>木</span><span>金</span><span>土</span></div>
+            <div class="calendar-grid" id="calendar-grid" role="grid" aria-label="支出カレンダー"></div>
+          </section>
+          <section class="card calendar-day-card"><div class="section-title-row"><h2 id="calendar-day-title"></h2><strong class="day-total" id="calendar-day-total"></strong></div><div class="transaction-list" id="calendar-day-transactions"></div></section>
+        </section>
+
+        <section class="view" id="view-settings" aria-labelledby="settings-title" hidden>
+          <div class="view-heading"><p class="eyebrow">家族用帳簿</p><h1 id="settings-title">設定</h1><p class="settings-help" id="settings-role-note"></p></div>
+          <div id="settings-content"></div>
+        </section>
+      </main>
+
+      <nav class="bottom-nav" aria-label="メインナビゲーション">
+        <button class="nav-item is-active" type="button" data-view="summary" aria-current="page"><span class="nav-icon" aria-hidden="true">⌂</span><span>集計</span></button>
+        <button class="nav-item" type="button" data-view="input"><span class="nav-add" aria-hidden="true">＋</span><span>入力</span></button>
+        <button class="nav-item" type="button" data-view="calendar"><span class="nav-icon" aria-hidden="true">▦</span><span>カレンダー</span></button>
+        <button class="nav-item" type="button" data-view="settings"><span class="nav-icon" aria-hidden="true">⚙</span><span>設定</span></button>
+      </nav>
+    </div>
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <?!= include('Client'); ?>
+  </body>
+</html>

@@ -34,3 +34,4 @@ Thumbs.db
 
 # GAS
 gas/.clasp.json
+gas/**/.clasp.json

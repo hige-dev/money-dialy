@@ -1,0 +1,873 @@
+<script>
+(() => {
+  'use strict';
+
+  const state = { sessionId: '', user: null, data: null, month: new Date(new Date().getFullYear(), new Date().getMonth(), 1), selectedDay: new Date().getDate(), view: 'summary', activeMaster: 'members', editingRecord: null, topUpDraft: null, topUpRefreshPending: false, toastTimer: null, confirmed: false, fetchedAt: '', syncStatus: '', sessionEpoch: 0, refreshSequence: 0 };
+  const sessionStorageKey = 'money-diary-family-session-v1';
+  const dataStorageKey = 'money-diary-family-data-v1';
+  const deploymentGeneration = document.querySelector('#auth-bootstrap')?.dataset.generation || '';
+  const views = ['summary', 'input', 'calendar', 'settings'];
+  const pendingForms = new WeakSet();
+  const categoryColors = ['#728f75', '#d49b55', '#7e9db4', '#bb7e6d', '#9b8bb1', '#8ba293', '#c7ae61', '#82919a'];
+  const $ = (selector, parent = document) => parent.querySelector(selector);
+  const $$ = (selector, parent = document) => [...parent.querySelectorAll(selector)];
+  const today = () => localDate(new Date());
+
+  function localDate(date) {
+    return [date.getFullYear(), String(date.getMonth() + 1).padStart(2, '0'), String(date.getDate()).padStart(2, '0')].join('-');
+  }
+
+  function money(amount) { return '¥' + (Number(amount) || 0).toLocaleString('ja-JP'); }
+  function newRequestId() {
+    if (window.crypto?.randomUUID) return window.crypto.randomUUID();
+    return 'req_' + Date.now().toString(36) + '_' + Math.random().toString(36).slice(2) + Math.random().toString(36).slice(2);
+  }
+  function categoryColor(id) {
+    const index = (state.data.categories || []).findIndex((category) => String(category.id) === String(id));
+    return categoryColors[(index >= 0 ? index : Math.abs(String(id).split('').reduce((sum, character) => sum + character.charCodeAt(0), 0))) % categoryColors.length];
+  }
+  function active(records) { return (records || []).filter((record) => record.active === true || String(record.active).toLowerCase() === 'true'); }
+  function lookup(records, id) { return (records || []).find((record) => String(record.id) === String(id)); }
+  function labelFor(type, id, fallback = '未設定') { return lookup(state.data[type] || [], id)?.name || fallback; }
+  function monthKey(date) { return String(date).slice(0, 7); }
+  function expenseMonth(expense) { return monthKey(expense.date); }
+  function byDateDescending(left, right) { return String(right.date).localeCompare(String(left.date)) || String(right.createdAt).localeCompare(String(left.createdAt)); }
+  function announce(message, error = false) {
+    const toast = $('#toast');
+    toast.textContent = message;
+    toast.classList.toggle('is-visible', Boolean(message));
+    toast.classList.toggle('is-error', error);
+    clearTimeout(state.toastTimer);
+    if (message) state.toastTimer = setTimeout(() => toast.classList.remove('is-visible'), 3200);
+  }
+
+  function apiWithSession(method, sessionId, ...args) {
+    return new Promise((resolve, reject) => {
+      if (!window.google?.script?.run) return reject(new Error('GASの実行環境で開いてください。'));
+      const runner = google.script.run.withSuccessHandler(resolve).withFailureHandler((error) => reject(new Error(error?.message || 'サーバー処理に失敗しました。')));
+      runner[method](sessionId, ...args);
+    });
+  }
+
+  function canEdit() { return state.confirmed && Boolean(state.sessionId && state.data); }
+
+  function requireEditing() {
+    if (canEdit()) return true;
+    announce('最新データと利用権限を確認するまで、閲覧のみ利用できます。', true);
+    return false;
+  }
+
+  async function api(method, ...args) {
+    if (method !== 'getAppData' && !requireEditing()) throw new Error('最新データと利用権限を確認してください。');
+    const sessionId = state.sessionId;
+    const epoch = state.sessionEpoch;
+    try {
+      const result = await apiWithSession(method, sessionId, ...args);
+      if (epoch !== state.sessionEpoch || sessionId !== state.sessionId) throw new Error('ログイン状態が変わったため、処理結果を破棄しました。');
+      return result;
+    } catch (error) {
+      if (epoch === state.sessionEpoch && isRejectedSession(error)) clearAuthentication(error.message, true);
+      throw error;
+    }
+  }
+
+  function removeStoredData() {
+    try { window.localStorage.removeItem(dataStorageKey); } catch (error) { /* 保存領域が利用できない場合も画面の削除は続けます。 */ }
+  }
+
+  function removeStoredSession() {
+    try { window.localStorage.removeItem(sessionStorageKey); } catch (error) { /* 保存領域が利用できない場合も画面のログアウトは続けます。 */ }
+    removeStoredData();
+  }
+
+  function isRejectedSession(error) {
+    return /アプリのログイン状態が無効|このGoogleアカウントは利用を許可されていません/.test(String(error && error.message || ''));
+  }
+
+  function validAppData(data) {
+    if (!data || typeof data !== 'object' || Array.isArray(data) || data.setupRequired !== false) return false;
+    if (!data.user || typeof data.user.email !== 'string' || typeof data.user.name !== 'string' || !['admin', 'member'].includes(data.user.role)) return false;
+    if (data.budget !== null && (!data.budget || typeof data.budget !== 'object' || Array.isArray(data.budget) || !Number.isFinite(Number(data.budget.amount)))) return false;
+    return ['members', 'sources', 'categories', 'places', 'expenses', 'walletEntries', 'fixedCosts', 'emailRules', 'users'].every((key) =>
+      Array.isArray(data[key]) && data[key].every((record) => record && typeof record === 'object' && !Array.isArray(record)));
+  }
+
+  function restoreStoredData(sessionId) {
+    try {
+      const value = window.localStorage.getItem(dataStorageKey);
+      if (!value) return null;
+      const saved = JSON.parse(value);
+      if (saved.version !== 1 || !deploymentGeneration || saved.generation !== deploymentGeneration || saved.sessionId !== sessionId ||
+          typeof saved.fetchedAt !== 'string' || !Number.isFinite(Date.parse(saved.fetchedAt)) || !validAppData(saved.data)) {
+        removeStoredData(); return null;
+      }
+      return saved;
+    } catch (error) { removeStoredData(); return null; }
+  }
+
+  function saveStoredData() {
+    if (!deploymentGeneration || !validAppData(state.data)) { removeStoredData(); return; }
+    try {
+      window.localStorage.setItem(dataStorageKey, JSON.stringify({ version: 1, generation: deploymentGeneration, sessionId: state.sessionId, fetchedAt: state.fetchedAt, data: state.data }));
+    } catch (error) { removeStoredData(); /* 容量不足などでも最新データの利用を続けます。 */ }
+  }
+
+  function updateEditingControls() {
+    const disabled = !canEdit();
+    const setupRequired = Boolean(state.data?.setupRequired);
+    $$('.bottom-nav [data-view], [data-view-link], [data-month-step], #filter-member, #filter-source').forEach((control) => {
+      if (control.tagName === 'A') return;
+      control.disabled = setupRequired && control.dataset.view !== 'settings';
+    });
+    $$('#expense-form input, #expense-form select, #expense-form button, #settings-content input, #settings-content select, #settings-content button, [data-edit-expense], [data-delete-expense]').forEach((control) => {
+      if (control.hasAttribute('data-master-tab')) return;
+      if (disabled && !control.hasAttribute('data-sync-disabled')) {
+        control.dataset.syncDisabled = control.disabled ? 'already' : 'true'; control.disabled = true;
+      } else if (!disabled && control.hasAttribute('data-sync-disabled')) {
+        if (control.dataset.syncDisabled === 'true') control.disabled = false;
+        delete control.dataset.syncDisabled;
+      }
+    });
+  }
+
+  function renderSyncStatus() {
+    const status = $('#data-sync-status');
+    status.hidden = !state.data || (Boolean(state.data.setupRequired) && state.syncStatus === 'ready');
+    const timestamp = state.fetchedAt ? new Date(state.fetchedAt).toLocaleString('ja-JP') : '';
+    $('#data-sync-message').textContent = state.syncStatus === 'checking' ? '最新データを確認中（閲覧のみ）' :
+      state.syncStatus === 'failed' ? '最新データを確認できていません（閲覧のみ）' : '最新データを確認しました';
+    $('#data-sync-time').textContent = timestamp ? '取得日時: ' + timestamp : '';
+    $('#retry-data-button').hidden = state.syncStatus !== 'failed';
+    updateEditingControls();
+  }
+
+  function clearAuthentication(message, removeStorage = false) {
+    state.sessionEpoch += 1; state.refreshSequence += 1;
+    state.sessionId = ''; state.user = null; state.data = null; state.confirmed = false;
+    state.fetchedAt = ''; state.syncStatus = ''; state.topUpDraft = null; state.topUpRefreshPending = false;
+    if (removeStorage) removeStoredSession();
+    $('#expense-form').reset(); delete $('#expense-form').dataset.requestAttempted;
+    ['#settings-content', '#recent-transactions', '#input-transactions', '#calendar-day-transactions', '#category-breakdown', '#category-trend-months', '#category-trend-legend', '#wallet-balances', '#calendar-grid'].forEach((selector) => $(selector)?.replaceChildren());
+    $$('#expense-form select, #filter-member, #filter-source').forEach((select) => select.replaceChildren());
+    ['#account-name', '#user-avatar', '#budget-limit', '#budget-remaining', '#calendar-day-total', '#calendar-day-title', '#settings-role-note', '#data-sync-time', '#data-sync-message'].forEach((selector) => { $(selector).textContent = ''; });
+    $('#summary-total').textContent = '0'; $('#budget-summary').hidden = true; $('#wallet-card').hidden = true;
+    $('#app-shell').hidden = true; $('#login-screen').hidden = false; $('#data-sync-status').hidden = true;
+    $('#login-status').textContent = message; $('#retry-login-button').hidden = true;
+    $('#google-login-link').hidden = $('#google-login-link').dataset.enabled !== 'true';
+    announce(''); updateEditingControls();
+  }
+
+  async function startAuthenticatedSession(sessionId, allowRestore = true) {
+    state.sessionEpoch += 1; state.sessionId = sessionId; state.confirmed = false;
+    $('#google-login-link').hidden = true;
+    $('#login-status').textContent = 'Googleログインを確認しています。';
+    try { window.localStorage.setItem(sessionStorageKey, sessionId); } catch (error) { /* このタブ内ではログインを続けます。 */ }
+    const saved = allowRestore ? restoreStoredData(sessionId) : null;
+    if (!allowRestore) removeStoredData();
+    if (saved) {
+      state.data = saved.data; state.user = saved.data.user; state.fetchedAt = saved.fetchedAt;
+      state.syncStatus = 'checking';
+      try { showApplication(); hydrateApp(); }
+      catch (error) {
+        removeStoredData(); state.data = null; state.user = null; state.fetchedAt = '';
+        $('#app-shell').hidden = true; $('#login-screen').hidden = false;
+      }
+    }
+    try { await refreshData('ログインしました'); }
+    catch (error) { /* 更新状態またはログイン画面に失敗理由を表示済みです。 */ }
+  }
+
+  function initializeAuthentication() {
+    const loginLink = $('#google-login-link');
+    if (loginLink.dataset.enabled !== 'true') loginLink.hidden = true;
+    const bootstrap = $('#auth-bootstrap');
+    const sessionId = bootstrap ? bootstrap.dataset.sessionId : '';
+    if (bootstrap) bootstrap.remove();
+    if (sessionId) {
+      startAuthenticatedSession(sessionId, false);
+      return;
+    }
+    try {
+      const storedSessionId = window.localStorage.getItem(sessionStorageKey);
+      if (storedSessionId) startAuthenticatedSession(storedSessionId); else removeStoredData();
+    } catch (error) {
+      $('#login-status').textContent = 'このブラウザーではログイン状態を復元できません。Googleアカウントでログインしてください。';
+    }
+  }
+
+  function showApplication() {
+    $('#login-screen').hidden = true;
+    $('#app-shell').hidden = false;
+    $('#account-name').textContent = state.user.name || state.user.email;
+    $('#user-avatar').textContent = Array.from(state.user.name || '家')[0];
+  }
+
+  function renderSetupRequired(data) {
+    $('#settings-role-note').textContent = '初回設定が必要です。Usersシートに登録された管理者だけが実行できます。';
+    $('#settings-content').innerHTML = '<section class="card settings-form"><h2>家族用シートを初期化</h2><p class="settings-help">既存データを消さず、不足するシートと見出しを追加します。初期利用者・支払元・カテゴリ・場所がない場合だけ登録します。</p><p class="settings-help">不足しているシート: ' + escapeHtml((data.missingTables || []).join('、')) + '</p><button class="primary-button" type="button" data-initialize-ledger>初期化する</button></section>';
+    showView('settings');
+    renderSyncStatus();
+  }
+
+  function escapeHtml(value) {
+    return String(value).replace(/[&<>"']/g, (character) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[character]);
+  }
+
+  function hydrateApp() {
+    fillSelects();
+    renderAll();
+    showView(state.view);
+  }
+
+  function fillSelect(select, records, placeholder, selected, includeAll) {
+    if (!select) return;
+    const choices = [];
+    if (includeAll) choices.push({ value: 'all', label: 'すべて' });
+    else if (placeholder !== null) choices.push({ value: '', label: placeholder });
+    active(records).forEach((record) => choices.push({ value: String(record.id), label: String(record.name) }));
+    select.replaceChildren(...choices.map((choice) => {
+      const option = document.createElement('option'); option.value = choice.value; option.textContent = choice.label; return option;
+    }));
+    if (selected !== undefined && choices.some((choice) => choice.value === String(selected))) select.value = String(selected);
+  }
+
+  function fillSelects() {
+    const members = state.data.members || [];
+    const sources = state.data.sources || [];
+    fillSelect($('#filter-member'), members, null, $('#filter-member').value || 'all', true);
+    fillSelect($('#filter-source'), sources, null, $('#filter-source').value || 'all', true);
+    const form = $('#expense-form');
+    const memberValue = form.elements.memberId.value || state.user.defaultMemberId;
+    const sourceValue = form.elements.sourceId.value || (active(sources)[0] || {}).id || '';
+    fillSelect(form.elements.memberId, members, '利用者を選択', memberValue, false);
+    fillSelect(form.elements.sourceId, sources, '支払元を選択', sourceValue, false);
+    fillSelect(form.elements.categoryId, state.data.categories || [], 'カテゴリを選択', form.elements.categoryId.value, false);
+    fillSelect(form.elements.placeId, state.data.places || [], '場所（任意）', form.elements.placeId.value, false);
+    const settings = $('#settings-content');
+    if (!settings) return;
+    fillSelect($('[name="defaultMemberId"]', settings), members, '既定利用者を選択', undefined, false);
+    fillSelect($('[name="topupSourceId"]', settings), sources.filter((source) => source.walletEnabled), '支払元を選択', state.topUpDraft?.topupSourceId, false);
+    ['fixedCostForm', 'emailRuleForm'].forEach((formId) => {
+      const formElement = $('#' + formId, settings);
+      if (!formElement) return;
+      fillSelect(formElement.elements.sourceId, sources, '指定しない', formElement.elements.sourceId.value, false);
+      fillSelect(formElement.elements.categoryId, state.data.categories, '指定しない', formElement.elements.categoryId.value, false);
+      fillSelect(formElement.elements.placeId, state.data.places, '指定しない', formElement.elements.placeId.value, false);
+    });
+  }
+
+  function showView(view) {
+    if (!views.includes(view) || (state.data?.setupRequired && view !== 'settings')) return;
+    state.view = view;
+    views.forEach((name) => {
+      const panel = $('#view-' + name);
+      panel.hidden = name !== view;
+      panel.classList.toggle('is-active', name === view);
+    });
+    $$('.bottom-nav [data-view]').forEach((button) => {
+      const selected = button.dataset.view === view;
+      button.classList.toggle('is-active', selected);
+      if (selected) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
+    });
+    window.scrollTo({ top: 0, behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }
+
+  function selectedExpenses() {
+    const memberId = $('#filter-member')?.value || 'all';
+    const sourceId = $('#filter-source')?.value || 'all';
+    return (state.data.expenses || []).filter((expense) => expenseMonth(expense) === monthKey(localDate(state.month)) &&
+      (memberId === 'all' || String(expense.memberId) === memberId) && (sourceId === 'all' || String(expense.sourceId) === sourceId));
+  }
+
+  function setMonthLabel() {
+    const label = state.month.getFullYear() + '年 ' + (state.month.getMonth() + 1) + '月';
+    $$('[data-month-label]').forEach((node) => { node.textContent = label; });
+  }
+
+  function renderAll() {
+    if (!state.data || state.data.setupRequired) return;
+    setMonthLabel();
+    renderSummary();
+    renderTransactions($('#recent-transactions'), selectedExpenses().sort(byDateDescending).slice(0, 8), false);
+    renderTransactions($('#input-transactions'), (state.data.expenses || []).slice().sort(byDateDescending).slice(0, 8), true);
+    renderCalendar();
+    fillSelects();
+    renderSettings();
+    renderSyncStatus();
+  }
+
+  function renderSummary() {
+    const expenses = selectedExpenses();
+    const total = expenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0);
+    $('#summary-total').textContent = total.toLocaleString('ja-JP');
+    $('#summary-title').textContent = state.month.getFullYear() === new Date().getFullYear() && state.month.getMonth() === new Date().getMonth()
+      ? '今月の支出' : state.month.getFullYear() + '年 ' + (state.month.getMonth() + 1) + '月の支出';
+    const budget = state.data.budget && Number(state.data.budget.amount);
+    const budgetPanel = $('#budget-summary');
+    budgetPanel.hidden = !budget;
+    if (budget) {
+      $('#budget-limit').textContent = money(budget);
+      const remaining = budget - total;
+      $('#budget-remaining').textContent = remaining >= 0 ? '残り ' + money(remaining) : '超過 ' + money(Math.abs(remaining));
+      const percent = Math.min(100, Math.round(total / budget * 100));
+      $('#budget-progress').setAttribute('aria-valuenow', String(percent));
+      $('.progress-fill', $('#budget-progress')).style.width = percent + '%';
+    }
+    renderCategoryBreakdown(expenses, total);
+    renderCategoryTrend();
+    const walletSources = active(state.data.sources || []).filter((source) => source.walletEnabled);
+    $('#wallet-card').hidden = walletSources.length === 0;
+    $('#wallet-balances').replaceChildren(...walletSources.map((source) => {
+      const row = document.createElement('div'); row.className = 'wallet-balance-row';
+      const name = document.createElement('span'); name.textContent = source.name;
+      const balance = document.createElement('strong'); balance.textContent = money(source.balance);
+      row.append(name, balance); return row;
+    }));
+  }
+
+  function groupByCategory(expenses) {
+    const totals = new Map();
+    expenses.forEach((expense) => {
+      const id = String(expense.categoryId || '');
+      const entry = totals.get(id) || { id: id, name: labelFor('categories', id), amount: 0 };
+      entry.amount += Number(expense.amount || 0);
+      totals.set(id, entry);
+    });
+    return [...totals.values()].sort((left, right) => right.amount - left.amount);
+  }
+
+  function renderCategoryBreakdown(expenses, total) {
+    const container = $('#category-breakdown');
+    container.replaceChildren();
+    const categories = groupByCategory(expenses);
+    if (!categories.length) { container.append(emptyState('この月の支出はありません。')); return; }
+    let cumulative = 0;
+    const gradient = categories.map((category) => {
+      const start = cumulative;
+      cumulative += category.amount / total * 100;
+      return categoryColor(category.id) + ' ' + start.toFixed(2) + '% ' + cumulative.toFixed(2) + '%';
+    }).join(', ');
+    const donut = document.createElement('div');
+    donut.id = 'category-donut'; donut.className = 'category-donut'; donut.setAttribute('role', 'img');
+    donut.setAttribute('aria-label', 'カテゴリ別支出の円グラフ、合計 ' + money(total));
+    donut.style.background = 'conic-gradient(' + gradient + ')';
+    const center = document.createElement('span'); center.className = 'category-donut-center';
+    const caption = document.createElement('span'); caption.textContent = '合計';
+    const centerValue = document.createElement('strong'); centerValue.textContent = total.toLocaleString('ja-JP');
+    center.append(caption, centerValue); donut.append(center);
+    const legend = document.createElement('div'); legend.className = 'category-legend';
+    categories.forEach((category) => {
+      const row = document.createElement('div'); row.className = 'category-legend-row';
+      const swatch = document.createElement('span'); swatch.className = 'category-legend-swatch'; swatch.style.backgroundColor = categoryColor(category.id);
+      const name = document.createElement('span'); name.className = 'category-legend-name'; name.textContent = category.name;
+      const amount = document.createElement('strong'); amount.textContent = money(category.amount);
+      row.append(swatch, name, amount); legend.append(row);
+    });
+    container.append(donut, legend);
+  }
+
+  function filteredExpenses() {
+    const memberId = $('#filter-member')?.value || 'all';
+    const sourceId = $('#filter-source')?.value || 'all';
+    return (state.data.expenses || []).filter((expense) =>
+      (memberId === 'all' || String(expense.memberId) === memberId) && (sourceId === 'all' || String(expense.sourceId) === sourceId));
+  }
+
+  function renderCategoryTrend() {
+    const monthsContainer = $('#category-trend-months');
+    const legendContainer = $('#category-trend-legend');
+    if (!monthsContainer || !legendContainer) return;
+    const months = [];
+    for (let offset = 11; offset >= 0; offset -= 1) {
+      const date = new Date(state.month.getFullYear(), state.month.getMonth() - offset, 1);
+      months.push({ key: monthKey(localDate(date)), label: (date.getMonth() + 1) + '月', fullLabel: date.getFullYear() + '年' + (date.getMonth() + 1) + '月', totals: new Map() });
+    }
+    const byMonth = new Map(months.map((month) => [month.key, month]));
+    filteredExpenses().forEach((expense) => {
+      const bucket = byMonth.get(expenseMonth(expense));
+      if (!bucket) return;
+      const categoryId = String(expense.categoryId || '');
+      bucket.totals.set(categoryId, (bucket.totals.get(categoryId) || 0) + Number(expense.amount || 0));
+    });
+    const categoryIds = [...new Set(months.flatMap((month) => [...month.totals.keys()]))];
+    const maxTotal = Math.max(0, ...months.map((month) => [...month.totals.values()].reduce((sum, amount) => sum + amount, 0)));
+    monthsContainer.replaceChildren(); legendContainer.replaceChildren();
+    months.forEach((month) => {
+      const column = document.createElement('div'); column.className = 'category-trend-column';
+      const stack = document.createElement('div'); stack.className = 'category-trend-stack';
+      const monthTotal = [...month.totals.values()].reduce((sum, amount) => sum + amount, 0);
+      stack.setAttribute('aria-label', month.fullLabel + '、支出 ' + money(monthTotal));
+      categoryIds.forEach((id) => {
+        const amount = month.totals.get(id) || 0;
+        if (!amount || !maxTotal) return;
+        const segment = document.createElement('span'); segment.className = 'category-trend-segment';
+        segment.style.height = Math.max(1, amount / maxTotal * 96) + 'px';
+        segment.style.backgroundColor = categoryColor(id);
+        segment.title = labelFor('categories', id) + ' ' + money(amount);
+        stack.append(segment);
+      });
+      const label = document.createElement('span'); label.className = 'category-trend-label'; label.textContent = month.label;
+      column.setAttribute('aria-label', month.fullLabel + 'のカテゴリ別支出');
+      column.append(stack, label); monthsContainer.append(column);
+    });
+    categoryIds.forEach((id) => {
+      const item = document.createElement('span'); item.className = 'category-trend-legend-item';
+      const swatch = document.createElement('span'); swatch.className = 'category-legend-swatch'; swatch.style.backgroundColor = categoryColor(id);
+      const label = document.createElement('span'); label.textContent = labelFor('categories', id);
+      item.append(swatch, label); legendContainer.append(item);
+    });
+    if (!categoryIds.length) legendContainer.append(emptyState('支出が記録されると月ごとの推移を表示します。'));
+  }
+
+  function emptyState(message) { const element = document.createElement('p'); element.className = 'empty-state'; element.textContent = message; return element; }
+
+  function transactionNode(expense, allowActions) {
+    const row = document.createElement('article'); row.className = 'transaction-row'; row.dataset.expenseId = expense.id;
+    const mark = document.createElement('span'); mark.className = 'transaction-icon'; mark.setAttribute('aria-hidden', 'true'); mark.textContent = Array.from(labelFor('categories', expense.categoryId, '・'))[0];
+    const copy = document.createElement('span'); copy.className = 'transaction-copy';
+    const memo = document.createElement('strong'); memo.textContent = expense.memo || labelFor('categories', expense.categoryId);
+    const details = document.createElement('small'); details.textContent = `${expense.date} ・ ${labelFor('members', expense.memberId)} ・ ${labelFor('sources', expense.sourceId)} ・ ${labelFor('categories', expense.categoryId)}${expense.placeId ? ' ・ ' + labelFor('places', expense.placeId) : ''}`;
+    copy.append(memo, details);
+    const amount = document.createElement('strong'); amount.className = 'transaction-amount'; amount.textContent = '−' + money(expense.amount);
+    row.append(mark, copy, amount);
+    if (allowActions) {
+      const actions = document.createElement('span'); actions.className = 'transaction-actions';
+      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'inline-action'; edit.dataset.editExpense = expense.id; edit.textContent = '編集';
+      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'inline-action'; remove.dataset.deleteExpense = expense.id; remove.textContent = '削除';
+      actions.append(edit, remove); row.append(actions);
+    }
+    return row;
+  }
+
+  function renderTransactions(container, expenses, actions) {
+    if (!container) return;
+    container.replaceChildren(...(expenses.length ? expenses.map((expense) => transactionNode(expense, actions)) : [emptyState('支出の記録はありません。')]));
+  }
+
+  function renderCalendar() {
+    const grid = $('#calendar-grid');
+    if (!grid) return;
+    const year = state.month.getFullYear(); const monthIndex = state.month.getMonth();
+    const firstDay = new Date(year, monthIndex, 1).getDay();
+    const daysInMonth = new Date(year, monthIndex + 1, 0).getDate();
+    const expenses = selectedExpenses();
+    const daily = new Map();
+    expenses.forEach((expense) => daily.set(Number(expense.date.slice(8, 10)), (daily.get(Number(expense.date.slice(8, 10))) || 0) + Number(expense.amount)));
+    const dailyValues = Array.from({ length: daysInMonth }, (_, index) => daily.get(index + 1) || 0);
+    const positiveValues = dailyValues.filter((amount) => amount > 0);
+    const percentileLimit = percentile95(dailyValues) || percentile95(positiveValues);
+    const cells = [];
+    for (let index = 0; index < firstDay; index += 1) { const blank = document.createElement('span'); blank.className = 'calendar-day calendar-blank'; blank.setAttribute('aria-hidden', 'true'); cells.push(blank); }
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'calendar-day'; button.setAttribute('role', 'gridcell');
+      button.dataset.day = String(day); button.setAttribute('aria-label', year + '年' + (monthIndex + 1) + '月' + day + '日' + (daily.has(day) ? '、支出 ' + money(daily.get(day)) : ''));
+      if (daily.has(day)) button.classList.add('has-expense');
+      if (daily.has(day) && percentileLimit > 0) {
+        const relativeAmount = Math.min(daily.get(day) / percentileLimit, 1);
+        button.style.setProperty('--heat-intensity', (0.12 + 0.72 * Math.sqrt(relativeAmount)).toFixed(3));
+      }
+      if (state.selectedDay === day) button.classList.add('is-selected');
+      const number = document.createElement('span'); number.textContent = String(day); button.append(number);
+      if (daily.has(day)) { const amount = document.createElement('small'); amount.textContent = daily.get(day).toLocaleString('ja-JP'); button.append(amount); }
+      button.addEventListener('click', () => { state.selectedDay = day; renderCalendar(); });
+      cells.push(button);
+    }
+    grid.replaceChildren(...cells);
+    const date = year + '-' + String(monthIndex + 1).padStart(2, '0') + '-' + String(state.selectedDay).padStart(2, '0');
+    const dayExpenses = expenses.filter((expense) => expense.date === date).sort(byDateDescending);
+    $('#calendar-day-title').textContent = (monthIndex + 1) + '月' + state.selectedDay + '日の支出';
+    $('#calendar-day-total').textContent = money(dayExpenses.reduce((sum, expense) => sum + Number(expense.amount || 0), 0));
+    renderTransactions($('#calendar-day-transactions'), dayExpenses, false);
+  }
+
+  function percentile95(values) {
+    if (!values.length) return 0;
+    const sorted = values.slice().sort((left, right) => left - right);
+    const position = (sorted.length - 1) * 0.95;
+    const lower = Math.floor(position); const upper = Math.ceil(position);
+    return sorted[lower] + (sorted[upper] - sorted[lower]) * (position - lower);
+  }
+
+  function resetExpenseForm(afterSuccessfulSave = false) {
+    const form = $('#expense-form');
+    if (form.dataset.requestAttempted === 'true' && !afterSuccessfulSave) {
+      announce('この要求IDで保存を試みました。保存済みの可能性があるため、入力と要求IDを保持します。台帳を確認してください。', true);
+      return;
+    }
+    form.reset(); form.elements.id.value = ''; form.elements.date.value = today();
+    form.elements.requestId.value = newRequestId();
+    form.elements.memberId.value = state.user.defaultMemberId || (active(state.data.members)[0] || {}).id || '';
+    form.elements.sourceId.value = (active(state.data.sources)[0] || {}).id || '';
+    delete form.dataset.requestAttempted;
+    $('#expense-submit').textContent = '支出を保存'; $('#expense-cancel').hidden = true;
+  }
+
+  function createTopUpDraft() {
+    const defaultSource = active(state.data.sources).find((source) => source.walletEnabled);
+    return {
+      requestId: newRequestId(), requestAttempted: false,
+      topupSourceId: defaultSource?.id || '', date: today(), amount: '', memo: '補充',
+    };
+  }
+
+  function ensureTopUpDraft() {
+    if (!state.topUpDraft) state.topUpDraft = createTopUpDraft();
+    return state.topUpDraft;
+  }
+
+  function captureTopUpDraft(form = $('#topupForm')) {
+    if (!form || !form.elements.requestId) return;
+    const requestId = String(form.elements.requestId.value || '');
+    if (state.topUpDraft?.requestId && requestId !== state.topUpDraft.requestId) return;
+    state.topUpDraft = {
+      requestId: requestId || state.topUpDraft?.requestId || newRequestId(),
+      requestAttempted: form.dataset.requestAttempted === 'true',
+      topupSourceId: form.elements.topupSourceId.value,
+      date: form.elements.date.value,
+      amount: form.elements.amount.value,
+      memo: form.elements.memo.value,
+    };
+  }
+
+  function restoreTopUpDraft(form, draft) {
+    form.elements.requestId.value = draft.requestId;
+    form.elements.topupSourceId.value = draft.topupSourceId || '';
+    form.elements.date.value = draft.date || today();
+    form.elements.amount.value = draft.amount || '';
+    form.elements.memo.value = draft.memo === undefined ? '補充' : draft.memo;
+    if (draft.requestAttempted) form.dataset.requestAttempted = 'true';
+    else delete form.dataset.requestAttempted;
+  }
+
+  function startEditExpense(id) {
+    if (!requireEditing()) return;
+    const expense = lookup(state.data.expenses, id);
+    if (!expense) return;
+    const form = $('#expense-form');
+    if (form.dataset.requestAttempted === 'true') {
+      announce('直前の保存結果を確認できていません。現在の入力と要求IDを保持するため、先に台帳を確認してください。', true);
+      return;
+    }
+    Object.keys(expense).forEach((key) => { if (form.elements[key]) form.elements[key].value = expense[key]; });
+    $('#expense-submit').textContent = '変更を保存'; $('#expense-cancel').hidden = false;
+    showView('input'); window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  async function refreshData(message) {
+    const epoch = state.sessionEpoch;
+    const sequence = ++state.refreshSequence;
+    if (!state.sessionId) throw new Error('Googleアカウントでログインしてください。');
+    state.confirmed = false; state.syncStatus = 'checking'; renderSyncStatus();
+    try {
+      const data = await api('getAppData');
+      if (epoch !== state.sessionEpoch || sequence !== state.refreshSequence) return;
+      state.data = data; state.user = data.user; state.confirmed = true;
+      state.fetchedAt = new Date().toISOString(); state.syncStatus = 'ready'; state.topUpRefreshPending = false;
+      saveStoredData(); showApplication();
+      $('#retry-login-button').hidden = true;
+      if (data.setupRequired) {
+        ['#recent-transactions', '#input-transactions', '#calendar-day-transactions', '#category-breakdown', '#category-trend-months', '#category-trend-legend', '#wallet-balances', '#calendar-grid'].forEach((selector) => $(selector)?.replaceChildren());
+        $('#summary-total').textContent = '0'; $('#expense-form').reset();
+        renderSetupRequired(data);
+      } else hydrateApp();
+      if (message) announce(message);
+    } catch (error) {
+      if (epoch !== state.sessionEpoch || sequence !== state.refreshSequence) throw error;
+      state.confirmed = false; state.syncStatus = 'failed';
+      if (state.data) renderSyncStatus();
+      else {
+        $('#google-login-link').hidden = $('#google-login-link').dataset.enabled !== 'true';
+        $('#login-status').textContent = error.message;
+        $('#retry-login-button').hidden = false;
+      }
+      throw error;
+    }
+  }
+
+  function settingsTemplate() {
+    const admin = state.user.role === 'admin';
+    $('#settings-role-note').textContent = admin ? '管理者はユーザーと帳簿設定を管理できます。許可されたユーザー全員が家族の支出を閲覧・入力できます。' : '家族の支出を全員で共有しています。利用者と支払元の一覧を確認できます。';
+    if (!admin) {
+      $('#settings-content').innerHTML = '<section class="card settings-form"><h2>利用者と支払元</h2><div class="readonly-master-list" id="readonly-master-list"></div></section>';
+      const list = $('#readonly-master-list');
+      [['利用者', state.data.members], ['支払元', state.data.sources], ['カテゴリ', state.data.categories]].forEach(([heading, records]) => {
+        const section = document.createElement('section'); section.className = 'readonly-master-section';
+        const title = document.createElement('h3'); title.textContent = heading; section.append(title);
+        active(records).forEach((record) => { const line = document.createElement('p'); line.textContent = record.name + (record.walletEnabled ? ' ・ 残高管理' : ''); section.append(line); }); list.append(section);
+      });
+      return;
+    }
+    const topUpDraft = ensureTopUpDraft();
+    $('#settings-content').innerHTML = `
+      <section class="card settings-form settings-section"><h2>利用者の管理</h2>
+        <form id="userForm" class="settings-grid" data-form="user"><input type="hidden" name="originalEmail">
+          <label>Googleアカウント<input class="text-input" name="email" type="email" autocomplete="off" required maxlength="254"></label>
+          <label>表示名<input class="text-input" name="name" required maxlength="80"></label>
+          <label>権限<select class="select-input" name="role"><option value="member">一般ユーザー</option><option value="admin">管理者</option></select></label>
+          <label>既定の利用者<select class="select-input" name="defaultMemberId" required></select></label>
+          <label class="check-field"><input name="active" type="checkbox" checked> 利用を許可する</label>
+          <button class="primary-button" type="submit">ユーザーを保存</button>
+        </form><div class="settings-record-list" id="user-list"></div>
+      </section>
+      <section class="card settings-form settings-section"><h2>利用者・支払元など</h2>
+        <div class="master-tabs" role="group" aria-label="管理する項目">
+          <button type="button" class="master-tab" data-master-tab="members">利用者</button><button type="button" class="master-tab" data-master-tab="sources">支払元</button><button type="button" class="master-tab" data-master-tab="categories">カテゴリ</button><button type="button" class="master-tab" data-master-tab="places">場所</button>
+        </div>
+        <form id="masterForm" class="settings-grid" data-form="master"><input type="hidden" name="id"><label>名前<input class="text-input" name="name" required maxlength="80"></label>
+          <label class="check-field"><input name="active" type="checkbox" checked> 有効にする</label>
+          <label class="check-field source-wallet-field"><input name="walletEnabled" type="checkbox"> 財布残高を管理する</label>
+          <label class="opening-balance-field">初期残高<input class="text-input" name="openingBalance" type="number" min="0" step="1" value="0"></label>
+          <button class="primary-button" type="submit">設定を保存</button><button class="secondary-button" type="button" data-reset-master>入力を消去</button>
+        </form><div class="settings-record-list" id="master-list"></div>
+      </section>
+      <section class="card settings-form settings-section"><h2>財布の補充</h2><p class="settings-help">補充は財布残高に加算し、家族の支出合計やカテゴリ別集計には含めません。</p>
+        <form id="topupForm" class="settings-grid" data-form="topup"><input type="hidden" name="requestId"><label>支払元<select class="select-input" name="topupSourceId" required></select></label><label>日付<input class="text-input" type="date" name="date" required></label><label>補充額<input class="text-input" type="number" name="amount" min="1" step="1" required></label><label>メモ<input class="text-input" name="memo" maxlength="200" value="補充"></label><button class="primary-button" type="submit">補充を記録</button></form>
+        <div class="settings-record-list" id="wallet-history-list"></div>
+      </section>
+      <section class="card settings-form settings-section"><h2>月予算</h2><form id="budgetForm" class="settings-grid" data-form="budget"><label>月予算（0で解除）<input class="text-input" type="number" min="0" step="1" name="amount"></label><button class="primary-button" type="submit">予算を保存</button></form></section>
+      <section class="card settings-form settings-section"><h2>固定費の設定</h2><p class="settings-help">設定を保存できます。自動起票は行いません。</p>
+        <form id="fixedCostForm" class="settings-grid" data-form="fixedCosts"><input type="hidden" name="id"><label>名前<input class="text-input" name="name" maxlength="80" required></label><label>金額<input class="text-input" type="number" name="amount" min="1" required></label><label>支払日<input class="text-input" type="number" name="day" min="1" max="31" required></label><label>頻度<select class="select-input" name="frequency"><option value="monthly">毎月</option><option value="bimonthly">隔月</option><option value="yearly">毎年</option></select></label><label>カテゴリ<select class="select-input" name="categoryId" required></select></label><label>支払元<select class="select-input" name="sourceId"></select></label><label>場所<select class="select-input" name="placeId"></select></label><label>備考<input class="text-input" name="note" maxlength="200"></label><button class="primary-button" type="submit">固定費を保存</button></form><div class="settings-record-list" id="fixed-cost-list"></div>
+      </section>
+      <section class="card settings-form settings-section"><h2>メール分類ルール</h2><p class="settings-help">ルールを保存できます。Gmailの読み取りや自動分類は行いません。</p>
+        <form id="emailRuleForm" class="settings-grid" data-form="emailRules"><input type="hidden" name="id"><label>条件の種類<select class="select-input" name="conditionType"><option value="subject">件名</option><option value="keyword">キーワード</option></select></label><label>条件<input class="text-input" name="condition" maxlength="160" required></label><label>支払元<select class="select-input" name="sourceId"></select></label><label>カテゴリ<select class="select-input" name="categoryId"></select></label><label>場所<select class="select-input" name="placeId"></select></label><button class="primary-button" type="submit">ルールを保存</button></form><div class="settings-record-list" id="email-rule-list"></div>
+      </section>`;
+    fillSelects();
+    $('#budgetForm').elements.amount.value = state.data.budget?.amount || '';
+    restoreTopUpDraft($('#topupForm'), topUpDraft);
+    renderSettingsLists();
+    updateMasterFormType();
+  }
+
+  function renderSettings() {
+    if (!state.data || state.data.setupRequired || !$('#settings-content')) return;
+    captureTopUpDraft();
+    settingsTemplate();
+  }
+
+  function renderSettingsLists() {
+    if (!$('#user-list')) return;
+    const users = $('#user-list'); users.replaceChildren();
+    (state.data.users || []).forEach((record) => {
+      const line = document.createElement('article'); line.className = 'settings-record';
+      const copy = document.createElement('span'); copy.className = 'settings-record-copy';
+      const title = document.createElement('strong'); title.textContent = record.name + ' ・ ' + record.email;
+      const detail = document.createElement('small'); detail.textContent = (record.role === 'admin' ? '管理者' : '一般ユーザー') + ' ・ 既定: ' + labelFor('members', record.defaultMemberId) + (record.active ? ' ・ 利用中' : ' ・ 停止中');
+      copy.append(title, detail); line.append(copy);
+      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'inline-action'; edit.dataset.editUser = record.email; edit.textContent = '編集'; line.append(edit); users.append(line);
+    });
+    renderMasterList();
+    renderConfigList('fixedCosts', $('#fixed-cost-list'));
+    renderConfigList('emailRules', $('#email-rule-list'));
+    const history = $('#wallet-history-list'); history.replaceChildren();
+    (state.data.walletEntries || []).slice().sort(byDateDescending).slice(0, 8).forEach((entry) => {
+      const line = document.createElement('article'); line.className = 'settings-record';
+      const copy = document.createElement('span'); copy.className = 'settings-record-copy';
+      const title = document.createElement('strong'); title.textContent = labelFor('sources', entry.sourceId) + ' ・ ' + (entry.type === 'opening' ? '初期残高' : '補充');
+      const detail = document.createElement('small'); detail.textContent = entry.date + (entry.memo ? ' ・ ' + entry.memo : '');
+      copy.append(title, detail); const amount = document.createElement('strong'); amount.className = 'settings-record-amount'; amount.textContent = '+' + money(entry.amount); line.append(copy, amount); history.append(line);
+    });
+  }
+
+  function renderMasterList() {
+    const container = $('#master-list'); if (!container) return;
+    const type = state.activeMaster; const records = state.data[type] || [];
+    container.replaceChildren();
+    records.forEach((record) => {
+      const line = document.createElement('article'); line.className = 'settings-record';
+      const copy = document.createElement('span'); copy.className = 'settings-record-copy';
+      const title = document.createElement('strong'); title.textContent = record.name;
+      const detail = document.createElement('small'); detail.textContent = (record.active ? '有効' : '停止中') + (type === 'sources' ? (record.walletEnabled ? ' ・ 財布残高を管理' : ' ・ 財布残高を管理しない') + (record.walletEnabled ? ' ・ 残高 ' + money(record.balance) : '') : '');
+      copy.append(title, detail); line.append(copy);
+      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'inline-action'; edit.dataset.editMaster = record.id; edit.textContent = '編集'; line.append(edit);
+      const toggle = document.createElement('button'); toggle.type = 'button'; toggle.className = 'inline-action'; toggle.dataset.toggleMaster = record.id; toggle.textContent = record.active ? '停止' : '有効化'; line.append(toggle);
+      container.append(line);
+    });
+  }
+
+  function updateMasterFormType() {
+    const form = $('#masterForm'); if (!form) return;
+    $$('.master-tab').forEach((button) => {
+      const selected = button.dataset.masterTab === state.activeMaster;
+      button.classList.toggle('is-active', selected); button.setAttribute('aria-pressed', String(selected));
+    });
+    const source = state.activeMaster === 'sources';
+    $('.source-wallet-field', form).hidden = !source;
+    $('.opening-balance-field', form).hidden = !source || !form.elements.walletEnabled.checked;
+    if (!source) form.elements.walletEnabled.checked = false;
+    renderMasterList();
+    updateEditingControls();
+  }
+
+  function renderConfigList(type, container) {
+    if (!container) return;
+    const records = state.data[type] || [];
+    container.replaceChildren();
+    records.forEach((record) => {
+      const line = document.createElement('article'); line.className = 'settings-record';
+      const copy = document.createElement('span'); copy.className = 'settings-record-copy';
+      const title = document.createElement('strong'); title.textContent = type === 'fixedCosts' ? record.name + ' ・ ' + money(record.amount) : record.condition;
+      const detail = document.createElement('small'); detail.textContent = type === 'fixedCosts'
+        ? '毎' + (record.frequency === 'monthly' ? '月' : record.frequency === 'bimonthly' ? '隔月' : '年') + ' ' + record.day + '日 ・ ' + labelFor('categories', record.categoryId)
+        : (record.conditionType === 'subject' ? '件名' : 'キーワード') + ' ・ ' + labelFor('categories', record.categoryId);
+      copy.append(title, detail); line.append(copy);
+      const edit = document.createElement('button'); edit.type = 'button'; edit.className = 'inline-action'; edit.dataset.editSetting = type + ':' + record.id; edit.textContent = '編集'; line.append(edit);
+      const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'inline-action'; remove.dataset.deleteSetting = type + ':' + record.id; remove.textContent = '削除'; line.append(remove); container.append(line);
+    });
+  }
+
+  function loadFormRecord(form, record) {
+    Object.keys(record).forEach((key) => { if (form.elements[key]) form.elements[key].value = record[key]; });
+    if (form.elements.active) form.elements.active.checked = record.active === true || String(record.active).toLowerCase() === 'true';
+    if (form.elements.walletEnabled) form.elements.walletEnabled.checked = record.walletEnabled === true || String(record.walletEnabled).toLowerCase() === 'true';
+  }
+
+  function readForm(form) {
+    const result = {};
+    new FormData(form).forEach((value, key) => { result[key] = value; });
+    $$('input[type="checkbox"]', form).forEach((input) => { result[input.name] = input.checked; });
+    return result;
+  }
+
+  async function onFormSubmit(event) {
+    const form = event.target;
+    const type = form.dataset.form;
+    if (!type) return;
+    event.preventDefault();
+    if (!requireEditing()) return;
+    if (type === 'topup' && state.topUpRefreshPending) {
+      announce('直前の補充はすでに保存されています。画面を更新できていないため、再読み込み後に台帳を確認してください。', true);
+      return;
+    }
+    if (pendingForms.has(form)) return;
+    pendingForms.add(form);
+    const submitButtons = $$('button[type="submit"]', form);
+    submitButtons.forEach((button) => { button.disabled = true; });
+    if (form.elements.requestId && !form.elements.requestId.value) form.elements.requestId.value = newRequestId();
+    if (type === 'expense' || type === 'topup') form.dataset.requestAttempted = 'true';
+    if (type === 'topup') captureTopUpDraft(form);
+    const value = readForm(form);
+    try {
+      if (type === 'expense') {
+        await api('saveExpense', value); await refreshData(value.id ? '支出を更新しました。' : '支出を保存しました。'); resetExpenseForm(true);
+      } else if (type === 'user') {
+        await api('saveUser', value); await refreshData('ユーザー設定を保存しました。'); form.reset(); form.elements.active.checked = true; form.elements.originalEmail.value = '';
+      } else if (type === 'master') {
+        await api('saveMaster', state.activeMaster, value); await refreshData('マスタを保存しました。'); form.reset(); form.elements.active.checked = true; form.elements.openingBalance.value = '0';
+      } else if (type === 'topup') {
+        await api('addWalletTopUp', { requestId: value.requestId, sourceId: value.topupSourceId, date: value.date, amount: value.amount, memo: value.memo });
+        state.topUpDraft = createTopUpDraft();
+        state.topUpRefreshPending = true;
+        restoreTopUpDraft($('#topupForm'), state.topUpDraft);
+        announce('財布の補充を記録しました。');
+        try {
+          await refreshData();
+          state.topUpRefreshPending = false;
+          announce('財布の補充を記録しました。');
+        } catch (refreshError) {
+          announce('補充は保存されましたが、画面を更新できませんでした。再読み込みして台帳を確認してください。');
+        }
+      } else if (type === 'budget') {
+        await api('saveBudget', value.amount || '0'); await refreshData('月予算を保存しました。');
+      } else if (type === 'fixedCosts' || type === 'emailRules') {
+        await api('saveSettingRecord', type, value); await refreshData(type === 'fixedCosts' ? '固定費の設定を保存しました。' : 'メール分類ルールを保存しました。'); form.reset();
+      }
+    } catch (error) { announce(error.message, true); }
+    finally { pendingForms.delete(form); submitButtons.forEach((button) => { button.disabled = !canEdit(); delete button.dataset.syncDisabled; }); updateEditingControls(); }
+  }
+
+  async function onSettingsClick(event) {
+    const target = event.target.closest('button'); if (!target) return;
+    if (!target.dataset.masterTab && !requireEditing()) return;
+    try {
+      if (target.hasAttribute('data-initialize-ledger')) {
+        await api('initializeFamilyLedger'); await refreshData(); announce('家族用シートを初期化しました。'); return;
+      }
+      if (target.dataset.masterTab) { state.activeMaster = target.dataset.masterTab; updateMasterFormType(); return; }
+      if (target.hasAttribute('data-reset-master')) { $('#masterForm').reset(); $('#masterForm').elements.id.value = ''; $('#masterForm').elements.active.checked = true; updateMasterFormType(); return; }
+      if (target.dataset.editUser) {
+        const user = (state.data.users || []).find((row) => row.email === target.dataset.editUser);
+        if (user) { loadFormRecord($('#userForm'), user); $('#userForm').elements.originalEmail.value = user.email; }
+        return;
+      }
+      if (target.dataset.editMaster) {
+        const record = lookup(state.data[state.activeMaster], target.dataset.editMaster); if (record) loadFormRecord($('#masterForm'), record); return;
+      }
+      if (target.dataset.toggleMaster) {
+        const record = lookup(state.data[state.activeMaster], target.dataset.toggleMaster);
+        if (record) { await api('setMasterActive', state.activeMaster, record.id, !record.active); await refreshData('マスタの有効状態を更新しました。'); }
+        return;
+      }
+      if (target.dataset.editSetting) {
+        const [type, id] = target.dataset.editSetting.split(':'); const record = lookup(state.data[type], id);
+        if (record) loadFormRecord($('#' + (type === 'fixedCosts' ? 'fixedCostForm' : 'emailRuleForm')), record); return;
+      }
+      if (target.dataset.deleteSetting) {
+        const [type, id] = target.dataset.deleteSetting.split(':');
+        if (window.confirm('この設定を削除しますか？')) { await api('deleteSettingRecord', type, id); await refreshData('設定を削除しました。'); }
+      }
+    } catch (error) { announce(error.message, true); }
+  }
+
+  async function onAppClick(event) {
+    const viewButton = event.target.closest('[data-view]');
+    if (viewButton && viewButton.closest('.bottom-nav')) { showView(viewButton.dataset.view); if (viewButton.dataset.view === 'input' && !$('#expense-form').elements.date.value) resetExpenseForm(); }
+    const viewLink = event.target.closest('[data-view-link]'); if (viewLink) { event.preventDefault(); showView(viewLink.dataset.viewLink); }
+    const editButton = event.target.closest('[data-edit-expense]'); if (editButton) startEditExpense(editButton.dataset.editExpense);
+    const deleteButton = event.target.closest('[data-delete-expense]');
+    if (deleteButton && requireEditing() && window.confirm('この支出を削除しますか？')) {
+      try { await api('deleteExpense', deleteButton.dataset.deleteExpense); await refreshData('支出を削除しました。'); }
+      catch (error) { announce(error.message, true); }
+    }
+  }
+
+  function bindEvents() {
+    document.addEventListener('click', onAppClick);
+    $('#settings-content').addEventListener('click', onSettingsClick);
+    document.addEventListener('submit', onFormSubmit);
+    $('#filter-member').addEventListener('change', renderAll);
+    $('#filter-source').addEventListener('change', renderAll);
+    $$('[data-month-step]').forEach((button) => button.addEventListener('click', () => {
+      state.month = new Date(state.month.getFullYear(), state.month.getMonth() + Number(button.dataset.monthStep), 1);
+      state.selectedDay = Math.min(state.selectedDay, new Date(state.month.getFullYear(), state.month.getMonth() + 1, 0).getDate()); renderAll();
+    }));
+    $('#expense-cancel').addEventListener('click', () => { if (requireEditing()) resetExpenseForm(); });
+    ['#retry-data-button', '#retry-login-button'].forEach((selector) => $(selector).addEventListener('click', () => { $('#retry-login-button').hidden = true; refreshData().catch((error) => announce(error.message, true)); }));
+    window.addEventListener('storage', (event) => {
+      if (event.key === sessionStorageKey && event.newValue !== state.sessionId && state.sessionId) {
+        const previousSessionId = state.sessionId;
+        clearAuthentication('別のタブでログイン状態が変更されました。Googleアカウントでログインしてください。');
+        try {
+          const saved = JSON.parse(window.localStorage.getItem(dataStorageKey) || 'null');
+          if (saved && saved.sessionId === previousSessionId) removeStoredData();
+        } catch (error) { removeStoredData(); }
+      }
+      if (event.key === null && state.sessionId) clearAuthentication('ブラウザーの保存状態が削除されました。Googleアカウントでログインしてください。');
+    });
+    $('#settings-content').addEventListener('change', (event) => {
+      if (event.target.name === 'walletEnabled' && $('#masterForm')) $('.opening-balance-field', $('#masterForm')).hidden = !event.target.checked;
+      if (event.target.closest('#topupForm')) captureTopUpDraft();
+    });
+    $('#settings-content').addEventListener('input', (event) => {
+      if (event.target.closest('#topupForm')) captureTopUpDraft();
+    });
+    $('#logout-button').addEventListener('click', () => {
+      const sessionId = state.sessionId;
+      clearAuthentication('ログアウトしました。', true);
+      const epoch = state.sessionEpoch;
+      if (sessionId) {
+        apiWithSession('logoutFamilySession', sessionId).catch(() => {
+          if (epoch !== state.sessionEpoch || state.sessionId) return;
+          $('#login-status').textContent = 'サーバーでのログアウト処理に失敗しました。ブラウザーのログイン状態は削除しました。';
+        });
+      }
+    });
+  }
+
+  function boot() {
+    $('#expense-form').dataset.form = 'expense';
+    bindEvents();
+    initializeAuthentication();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', boot, { once: true }); else boot();
+})();
+</script>

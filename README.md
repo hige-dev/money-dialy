@@ -65,6 +65,15 @@ Lambda Function URL (Go) → DynamoDB
 └── scripts/                # デプロイスクリプト
 ```
 
+### 家族用GAS家計簿
+
+家族用の別アプリ`gas/webapp-pilot/`もApps Script内で画面とデータを扱います。ログインはGASサーバー側OAuth認証コードフローで行い、Google Cloudへ登録するリダイレクトURIは次のとおりです。
+
+```text
+https://script.google.com/macros/d/1zhqVIRy5YKrDURd77Tl5I4Za4f-1kvGqyJbvwnesW1HLFt8j7InXa3sQ/usercallback
+```
+
+クライアントシークレットはApps Scriptのスクリプトプロパティ`GOOGLE_OAUTH_CLIENT_SECRET`だけに設定します。Cloud設定と実コールバックを確認するまではデプロイのアクセス範囲を`MYSELF`に保ちます。初期設定は[家族用GAS家計簿のREADME](gas/webapp-pilot/README.md)を参照してください。
 
 ## セットアップ
 
