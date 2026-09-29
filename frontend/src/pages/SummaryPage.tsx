@@ -5,8 +5,14 @@ import { Doughnut, Bar } from 'react-chartjs-2';
 import { MonthPicker } from '../components/MonthPicker';
 import { summaryApi, payersApi, expensesApi, categoriesApi, placesApi } from '../services/api';
 import type { MonthlySummary, YearlySummary, Payer, PayerBalance, Expense, Category, Place, Visibility } from '../types';
+import { categoryDisplayColor } from '../utils/categoryColors';
 
 ChartJS.register(ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title);
+
+const CHART_TEXT_COLOR = '#466853';
+const CHART_GRID_COLOR = 'rgba(70, 104, 83, 0.14)';
+const CHART_TOOLTIP_BACKGROUND = '#315944';
+const CHART_TOOLTIP_TEXT = '#f6f5f0';
 
 interface EditModalProps {
   expense: Expense;
@@ -126,21 +132,26 @@ function formatDiff(diff: number, percent: number): string {
 }
 
 /** 年間データから全カテゴリ（色付き）を収集 */
-function collectCategories(yearly: YearlySummary): { name: string; color: string }[] {
-  const map = new Map<string, string>();
+function collectCategories(yearly: YearlySummary, masterColors: ReadonlyMap<string, string>): { id: string; name: string; color: string }[] {
+  const map = new Map<string, { id: string; name: string; color: string }>();
   for (const m of yearly.months) {
     for (const c of (m.byCategory || [])) {
-      if (!map.has(c.category)) {
-        map.set(c.category, c.color);
+      const id = c.categoryId || `name:${c.category}`;
+      if (!map.has(id)) {
+        map.set(id, {
+          id,
+          name: c.category,
+          color: masterColors.get(c.categoryId) || categoryDisplayColor(c.color),
+        });
       }
     }
   }
-  return Array.from(map.entries()).map(([name, color]) => ({ name, color }));
+  return Array.from(map.values());
 }
 
 /** カテゴリ別積み上げ棒グラフ用データ生成 */
-function buildStackedBarData(yearly: YearlySummary) {
-  const categories = collectCategories(yearly);
+function buildStackedBarData(yearly: YearlySummary, masterColors: ReadonlyMap<string, string>) {
+  const categories = collectCategories(yearly, masterColors);
   const lastMonth = yearly.months[yearly.months.length - 1]?.month || '';
   const lastYear = lastMonth.split('-')[0];
   const labels = yearly.months.map((m) => {
@@ -152,7 +163,7 @@ function buildStackedBarData(yearly: YearlySummary) {
   const datasets = categories.map((cat) => ({
     label: cat.name,
     data: yearly.months.map((m) => {
-      const found = (m.byCategory || []).find((c) => c.category === cat.name);
+      const found = (m.byCategory || []).find((c) => (c.categoryId || `name:${c.category}`) === cat.id);
       return found ? found.amount : 0;
     }),
     backgroundColor: cat.color,
@@ -162,14 +173,14 @@ function buildStackedBarData(yearly: YearlySummary) {
   return { labels, datasets };
 }
 
-/** 元の色を保持するMap（Chart.jsのデータ書き換え後も復元可能にする） */
-const originalColors = new Map<string, string>();
-
 function toRgba(hex: string, alpha: number): string {
   if (hex.startsWith('rgba')) return hex.replace(/[\d.]+\)$/, `${alpha})`);
-  const r = parseInt(hex.slice(1, 3), 16);
-  const g = parseInt(hex.slice(3, 5), 16);
-  const b = parseInt(hex.slice(5, 7), 16);
+  const match = /^#([\da-f]{3}|[\da-f]{6})$/i.exec(hex);
+  if (!match) return hex;
+  const channels = match[1].length === 3
+    ? [...match[1]].map((digit) => Number.parseInt(digit + digit, 16))
+    : [0, 2, 4].map((offset) => Number.parseInt(match[1].slice(offset, offset + 2), 16));
+  const [r, g, b] = channels;
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
@@ -181,7 +192,7 @@ function buildStackedBarOptions(selectedRef: React.RefObject<Set<number>>, onFil
     plugins: {
       legend: {
         position: 'bottom',
-        labels: { font: { size: 11 }, boxWidth: 12 },
+        labels: { color: CHART_TEXT_COLOR, font: { size: 11 }, boxWidth: 12 },
         onClick: (_event, legendItem, legend) => {
           const chart = legend.chart;
           const clickedIdx = legendItem.datasetIndex;
@@ -216,11 +227,10 @@ function buildStackedBarOptions(selectedRef: React.RefObject<Set<number>>, onFil
           const idx = legendItem.datasetIndex;
           if (idx == null) return;
           chart.data.datasets.forEach((ds, i) => {
-            const key = `ds-${i}`;
-            const bg = ds.backgroundColor;
-            if (typeof bg !== 'string') return;
-            if (!originalColors.has(key)) originalColors.set(key, bg);
-            const orig = originalColors.get(key)!;
+            const orig = typeof ds.hoverBackgroundColor === 'string'
+              ? ds.hoverBackgroundColor
+              : ds.backgroundColor;
+            if (typeof orig !== 'string') return;
             ds.backgroundColor = i === idx ? orig : toRgba(orig, 0.15);
           });
           chart.update('none');
@@ -228,14 +238,20 @@ function buildStackedBarOptions(selectedRef: React.RefObject<Set<number>>, onFil
         onLeave: (_event, _legendItem, legend) => {
           if (isFiltered()) return;
           const chart = legend.chart;
-          chart.data.datasets.forEach((ds, i) => {
-            const orig = originalColors.get(`ds-${i}`);
-            if (orig) ds.backgroundColor = orig;
+          chart.data.datasets.forEach((ds) => {
+            const orig = ds.hoverBackgroundColor;
+            if (typeof orig === 'string') ds.backgroundColor = orig;
           });
           chart.update('none');
         },
       },
       tooltip: {
+        backgroundColor: CHART_TOOLTIP_BACKGROUND,
+        titleColor: CHART_TOOLTIP_TEXT,
+        bodyColor: CHART_TOOLTIP_TEXT,
+        footerColor: CHART_TOOLTIP_TEXT,
+        borderColor: '#8ba293',
+        borderWidth: 1,
         callbacks: {
           label: (ctx) => `${ctx.dataset.label}: \u00a5${(ctx.parsed.y ?? 0).toLocaleString()}`,
           footer: (items) => {
@@ -247,18 +263,20 @@ function buildStackedBarOptions(selectedRef: React.RefObject<Set<number>>, onFil
       },
     },
     scales: {
-      x: { stacked: true },
+      x: { stacked: true, ticks: { color: CHART_TEXT_COLOR }, grid: { color: CHART_GRID_COLOR } },
       y: {
         stacked: true,
         beginAtZero: true,
-        position: 'right', // Move Y-axis to the right side
+        position: 'right', // Y軸を右側に配置
         ticks: {
+          color: CHART_TEXT_COLOR,
           callback: (value) => `\u00a5${Number(value).toLocaleString()}`,
         },
+        grid: { color: CHART_GRID_COLOR },
       },
     },
     layout: {
-      padding: { right: 40 }, // Add right‑side margin for the axis
+      padding: { right: 40 }, // Y軸表示用の右余白
     },
   };
 }
@@ -286,6 +304,10 @@ export function SummaryPage() {
   const stackedBarOptions = useMemo(() => buildStackedBarOptions(selectedRef, setFilterCount), []);
 
   const month = getMonth(date);
+  const categoryColorMap = useMemo(
+    () => new Map(categories.map((category) => [category.id, categoryDisplayColor(category.color)])),
+    [categories],
+  );
 
   // 支払元・カテゴリ・場所一覧を取得
   useEffect(() => {
@@ -361,8 +383,8 @@ export function SummaryPage() {
   const stackedBarData = useMemo(() => {
     selectedRef.current.clear();
     setFilterCount(0);
-    return yearly ? buildStackedBarData(yearly) : null;
-  }, [yearly]);
+    return yearly ? buildStackedBarData(yearly, categoryColorMap) : null;
+  }, [yearly, categoryColorMap]);
 
   // 場所別集計（isExpense=true のカテゴリのみ）
   const expenseCategories = useMemo(
@@ -419,7 +441,7 @@ export function SummaryPage() {
     labels: categorySummaries.map((c) => c.category),
     datasets: [{
       data: categorySummaries.map((c) => c.amount),
-      backgroundColor: categorySummaries.map((c) => c.color),
+      backgroundColor: categorySummaries.map((c) => categoryColorMap.get(c.categoryId) || categoryDisplayColor(c.color)),
       borderWidth: 1,
       borderColor: '#fff',
     }],
@@ -505,7 +527,15 @@ export function SummaryPage() {
             options={{
               responsive: true,
               plugins: {
-                legend: { position: 'bottom', labels: { font: { size: 11 }, boxWidth: 12 } },
+                legend: { position: 'bottom', labels: { color: CHART_TEXT_COLOR, font: { size: 11 }, boxWidth: 12 } },
+                tooltip: {
+                  backgroundColor: CHART_TOOLTIP_BACKGROUND,
+                  titleColor: CHART_TOOLTIP_TEXT,
+                  bodyColor: CHART_TOOLTIP_TEXT,
+                  footerColor: CHART_TOOLTIP_TEXT,
+                  borderColor: '#8ba293',
+                  borderWidth: 1,
+                },
               },
             }}
           />
@@ -587,16 +617,16 @@ export function SummaryPage() {
               <div key={cat.categoryId}>
                 <div
                   className="summary-category-item"
-                  style={{ cursor: 'pointer', ...(isExpanded ? { background: '#f3f4f6' } : {}) }}
+                  style={{ cursor: 'pointer', ...(isExpanded ? { background: 'var(--color-surface)' } : {}) }}
                   onClick={() => setExpandedCategory(isExpanded ? null : cat.categoryId)}
                 >
-                  <div className="summary-category-color" style={{ background: cat.color }} />
+                  <div className="summary-category-color" style={{ background: categoryColorMap.get(cat.categoryId) || categoryDisplayColor(cat.color) }} />
                   <span className="summary-category-name">{cat.category}</span>
                   <span className="summary-category-amount">&yen;{cat.amount.toLocaleString()}</span>
                   <span className="summary-category-percent">{percent}%</span>
                 </div>
                 {isExpanded && catExpenses.length > 0 && (
-                  <div style={{ paddingLeft: 16, paddingRight: 4, background: '#f9fafb' }}>
+                  <div style={{ paddingLeft: 16, paddingRight: 4, background: 'var(--color-paper)' }}>
                     {catExpenses.map((e) => {
                       const d = new Date(e.date + 'T00:00:00');
                       const weekdays = ['日', '月', '火', '水', '木', '金', '土'];
@@ -608,7 +638,7 @@ export function SummaryPage() {
                           style={{ cursor: 'pointer' }}
                           onClick={() => setEditTarget(e)}
                         >
-                          <div className="expense-item-color" style={{ background: cat.color }} />
+                          <div className="expense-item-color" style={{ background: categoryColorMap.get(cat.categoryId) || categoryDisplayColor(cat.color) }} />
                           <div className="expense-item-body">
                             <div className="expense-item-top">
                               <span className="expense-item-category">{dateLabel}</span>
@@ -659,4 +689,3 @@ export function SummaryPage() {
     </>
   );
 }
-

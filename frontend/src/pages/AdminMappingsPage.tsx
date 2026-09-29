@@ -239,7 +239,7 @@ export function AdminMappingsPage() {
               >
                 <div className="settings-item-body">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                    <span className="settings-item-badge" style={{ backgroundColor: m.type === 'subject' ? '#e0f2fe' : '#fef3c7', color: m.type === 'subject' ? '#0369a1' : '#b45309' }}>
+                    <span className="settings-item-badge" style={{ backgroundColor: m.type === 'subject' ? 'var(--color-green-soft)' : '#f7eee0', color: m.type === 'subject' ? 'var(--color-green)' : '#8d6c3f' }}>
                       {m.type === 'subject' ? '件名' : 'キーワード'}
                     </span>
                     {m.exclude && (
@@ -253,7 +253,7 @@ export function AdminMappingsPage() {
                     {m.payer && <span>支払元: <strong>{m.payer}</strong></span>}
                     {catName && <span>カテゴリ: <strong>{catName}</strong></span>}
                     {m.place && <span>場所: <strong>{m.place}</strong></span>}
-                    {m.comment && <span style={{ color: '#9ca3af' }}>({m.comment})</span>}
+                    {m.comment && <span style={{ color: 'var(--color-faint)' }}>({m.comment})</span>}
                   </span>
                 </div>
                 <button
@@ -289,4 +289,3 @@ export function AdminMappingsPage() {
     </>
   );
 }
-

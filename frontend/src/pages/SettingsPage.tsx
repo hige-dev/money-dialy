@@ -3,29 +3,15 @@ import { useNavigate } from 'react-router-dom';
 import { categoriesApi, placesApi, payersApi } from '../services/api';
 import { useAuth } from '../contexts/AuthContext';
 import type { Category, Place, Payer, CategoryInput, PlaceInput, PayerInput } from '../types';
+import {
+  CATEGORY_COLOR_PALETTE,
+  categoryColorForIndex,
+  categoryDisplayColor,
+  categoryPaletteForCount,
+  nextAvailableCategoryColor,
+} from '../utils/categoryColors';
 
 type Tab = 'categories' | 'places' | 'payers';
-
-function hslToHex(h: number, s: number, l: number): string {
-  s /= 100;
-  l /= 100;
-  const a = s * Math.min(l, 1 - l);
-  const f = (n: number) => {
-    const k = (n + h / 30) % 12;
-    const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
-    return Math.round(255 * color).toString(16).padStart(2, '0');
-  };
-  return `#${f(0)}${f(8)}${f(4)}`;
-}
-
-function generateGradientColors(count: number): string[] {
-  const colors: string[] = [];
-  for (let i = 0; i < count; i++) {
-    const hue = Math.round((360 * i) / count);
-    colors.push(hslToHex(hue, 65, 55));
-  }
-  return colors;
-}
 
 // --- カテゴリモーダル ---
 function CategoryModal({
@@ -43,8 +29,7 @@ function CategoryModal({
   onDelete?: () => void;
   onClose: () => void;
 }) {
-  const gradientColors = generateGradientColors(Math.max(categories.length + 1, 8));
-  const defaultColor = initial?.color || gradientColors[categories.length % gradientColors.length];
+  const defaultColor = initial?.color || nextAvailableCategoryColor(categories.map((category) => category.color));
 
   const [name, setName] = useState(initial?.name || '');
   const [sortOrder, setSortOrder] = useState(String(initial?.sortOrder ?? 0));
@@ -53,6 +38,11 @@ function CategoryModal({
   const [isExpense, setIsExpense] = useState(initial?.isExpense ?? true);
   const [excludeFromBreakdown, setExcludeFromBreakdown] = useState(initial?.excludeFromBreakdown ?? false);
   const [excludeFromSummary, setExcludeFromSummary] = useState(initial?.excludeFromSummary ?? false);
+  const paletteCandidates = categoryPaletteForCount(Math.max(CATEGORY_COLOR_PALETTE.length, categories.length + 1));
+  const displayColor = categoryDisplayColor(color);
+  const colorChoices = paletteCandidates.includes(displayColor)
+    ? paletteCandidates
+    : [...paletteCandidates, displayColor];
 
   return (
     <div className="modal-overlay" onClick={onClose}>
@@ -70,16 +60,23 @@ function CategoryModal({
         <div className="modal-field">
           <label>色</label>
           <div className="settings-color-picker">
-            {gradientColors.map((c, i) => (
+            {colorChoices.map((c, i) => (
               <button
                 key={i}
-                className={`settings-color-swatch ${color === c ? 'selected' : ''}`}
-                style={{ background: c }}
+                className={`settings-color-swatch ${displayColor === c ? 'selected' : ''}`}
+                style={{ background: categoryDisplayColor(c) }}
+                aria-label={`色 ${i + 1}`}
+                title={c}
                 onClick={() => setColor(c)}
               />
             ))}
           </div>
           <input type="color" value={color} onChange={(e) => setColor(e.target.value)} style={{ marginTop: 4, width: '100%', height: 32 }} />
+          <div className="category-color-preview">
+            <span>画面での表示</span>
+            <span className="category-color-preview-swatch" style={{ background: displayColor }} />
+            <code>{displayColor}</code>
+          </div>
         </div>
 
         <div className="modal-field">
@@ -260,12 +257,13 @@ function PayerModal({
 export function SettingsPage() {
   const { user } = useAuth();
   const navigate = useNavigate();
-  const [tab, setTab] = useState<Tab>('categories');
+  const [tab, setTab] = useState<Tab | null>(null);
   const [categories, setCategories] = useState<Category[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
   const [payers, setPayers] = useState<Payer[]>([]);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<string | null>(null);
+  const [isApplyingPalette, setIsApplyingPalette] = useState(false);
 
   // モーダル状態
   const [editCategory, setEditCategory] = useState<Category | null | 'new' | 'new-personal'>(null);
@@ -400,199 +398,245 @@ export function SettingsPage() {
 
   return (
     <>
-      <div className="recurring-header">
+      <div className="recurring-header settings-page-header">
         <h2>設定</h2>
       </div>
 
-      <div className="summary-recurring-link">
-        <button className="recurring-link-btn" onClick={() => navigate('/recurring')}>
-          テンプレートを管理
-        </button>
-        <button className="recurring-link-btn" onClick={() => navigate('/bulk')} style={{ marginTop: 8 }}>
-          一括登録
-        </button>
-        <button className="recurring-link-btn" onClick={() => navigate('/mappings')} style={{ marginTop: 8 }}>
-          メール自動分類マッピング
-        </button>
-      </div>
-
-      {/* タブ */}
-      <div className="settings-tabs">
-        <button className={`settings-tab ${tab === 'categories' ? 'active' : ''}`} onClick={() => setTab('categories')}>
-          カテゴリ
-        </button>
-        <button className={`settings-tab ${tab === 'places' ? 'active' : ''}`} onClick={() => setTab('places')}>
-          場所
-        </button>
-        <button className={`settings-tab ${tab === 'payers' ? 'active' : ''}`} onClick={() => setTab('payers')}>
-          支払元
-        </button>
-      </div>
-
-      {/* カテゴリタブ */}
-      {tab === 'categories' && (
+      {tab === null ? (
+        <div className="settings-hub">
+          <section className="settings-hub-section">
+            <h3>入力項目</h3>
+            <p>日々の入力や集計で使う項目を設定します。</p>
+            <div className="settings-hub-links">
+              <button className="settings-hub-link" onClick={() => setTab('categories')}>
+                <span>カテゴリ</span><span>共有・個人カテゴリ、色、集計方法</span>
+              </button>
+              <button className="settings-hub-link" onClick={() => setTab('places')}>
+                <span>場所</span><span>支出先の候補</span>
+              </button>
+              <button className="settings-hub-link" onClick={() => setTab('payers')}>
+                <span>支払元</span><span>支払元と残額の追跡設定</span>
+              </button>
+            </div>
+          </section>
+          <section className="settings-hub-section">
+            <h3>管理</h3>
+            <p>入力補助や残高、メール分類の設定を行います。</p>
+            <div className="settings-hub-links">
+              <button className="settings-hub-link" onClick={() => navigate('/recurring')}>
+                <span>定期支出</span><span>繰り返し登録する支出</span>
+              </button>
+              <button className="settings-hub-link" onClick={() => navigate('/balance')}>
+                <span>残高</span><span>カテゴリごとの収入・支出</span>
+              </button>
+              <button className="settings-hub-link" onClick={() => navigate('/bulk')}>
+                <span>一括登録</span><span>複数の支出をまとめて入力</span>
+              </button>
+              <button className="settings-hub-link" onClick={() => navigate('/mappings')}>
+                <span>メール自動分類</span><span>メールからの分類ルール</span>
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : (
         <>
-          <div className="settings-add-row">
-            <button
-              className="recurring-add-btn"
-              style={{ fontSize: '0.75rem', padding: '4px 10px', background: '#f3f4f6', color: '#374151' }}
-              onClick={async () => {
-                if (!confirm('全カテゴリの色を並び順に応じたグラデーションに振り直しますか？')) return;
-                const sorted = [...categories].sort((a, b) => a.sortOrder - b.sortOrder);
-                const colors = generateGradientColors(sorted.length);
-                try {
-                  for (let i = 0; i < sorted.length; i++) {
-                    await categoriesApi.update(sorted[i].id, {
-                      name: sorted[i].name,
-                      sortOrder: sorted[i].sortOrder,
-                      color: colors[i],
-                      isActive: sorted[i].isActive,
-                      isExpense: sorted[i].isExpense,
-                      excludeFromBreakdown: sorted[i].excludeFromBreakdown,
-                      excludeFromSummary: sorted[i].excludeFromSummary,
-                      ownerEmail: sorted[i].ownerEmail,
-                    });
-                  }
-                  setCategories(await categoriesApi.getAllIncludingInactive() || []);
-                  setToast('色を振り直しました');
-                } catch (e) {
-                  console.error(e);
-                  setToast('色の振り直しに失敗しました');
-                }
-              }}
-            >
-              色を自動振り分け
-            </button>
-            <button className="recurring-add-btn" onClick={() => setEditCategory('new')}>+ 追加</button>
-          </div>
-          {/* 共有カテゴリ */}
-          <div style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6b7280', padding: '8px 16px 0' }}>共有カテゴリ</div>
-          <div className="settings-list">
-            {categories.filter((c) => !c.ownerEmail).map((cat) => (
-              <div
-                key={cat.id}
-                className={`settings-item ${!cat.isActive ? 'inactive' : ''}`}
-                onClick={() => setEditCategory(cat)}
-              >
-                <div className="settings-item-color" style={{ background: cat.color }} />
-                <div className="settings-item-body">
-                  <span className="settings-item-name">{cat.name}</span>
-                  <span className="settings-item-meta">
-                    {!cat.isExpense && <span className="settings-item-badge">収入</span>}
-                    {!cat.isActive && <span className="settings-item-badge inactive-badge">無効</span>}
-                    <span className="settings-item-order">#{cat.sortOrder}</span>
-                  </span>
-                </div>
-              </div>
-            ))}
-            {categories.filter((c) => !c.ownerEmail).length === 0 && <div className="empty-state"><p>共有カテゴリがありません</p></div>}
+          <div className="settings-master-detail">
+            <button className="settings-back-button" onClick={() => setTab(null)} disabled={isApplyingPalette}>‹ 設定一覧へ戻る</button>
+            <div>
+              <h3>{tab === 'categories' ? 'カテゴリ' : tab === 'places' ? '場所' : '支払元'}</h3>
+              <p>項目を選ぶと編集できます。</p>
+            </div>
           </div>
 
-          {/* 個人カテゴリ */}
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 0' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#6b7280' }}>個人カテゴリ</span>
-            <button className="recurring-add-btn" onClick={() => setEditCategory('new-personal')}>+ 追加</button>
-          </div>
-          <div className="settings-list">
-            {categories.filter((c) => !!c.ownerEmail).map((cat) => (
-              <div
-                key={cat.id}
-                className={`settings-item ${!cat.isActive ? 'inactive' : ''}`}
-                onClick={() => setEditCategory(cat)}
-              >
-                <div className="settings-item-color" style={{ background: cat.color }} />
-                <div className="settings-item-body">
-                  <span className="settings-item-name">{cat.name}</span>
-                  <span className="settings-item-meta">
-                    {!cat.isExpense && <span className="settings-item-badge">収入</span>}
-                    {!cat.isActive && <span className="settings-item-badge inactive-badge">無効</span>}
-                    <span className="settings-item-order">#{cat.sortOrder}</span>
-                  </span>
-                </div>
+          {/* カテゴリタブ */}
+          {tab === 'categories' && (
+            <>
+              <div className="settings-add-row">
+                <button
+                  className="recurring-add-btn settings-palette-button"
+                  disabled={isApplyingPalette}
+                  onClick={async () => {
+                    if (!confirm('すべてのカテゴリの保存色を共通テーマ配色に置き換えます。カテゴリ名・並び順・有効状態などは変更しません。適用しますか？')) return;
+                    const sorted = [...categories].sort((a, b) => a.sortOrder - b.sortOrder || a.id.localeCompare(b.id));
+                    setIsApplyingPalette(true);
+                    try {
+                      const results = await Promise.allSettled(
+                        sorted.map((category, i) => categoriesApi.update(category.id, {
+                          name: category.name,
+                          sortOrder: category.sortOrder,
+                          color: categoryColorForIndex(i),
+                          isActive: category.isActive,
+                          isExpense: category.isExpense,
+                          excludeFromBreakdown: category.excludeFromBreakdown,
+                          excludeFromSummary: category.excludeFromSummary,
+                          ownerEmail: category.ownerEmail,
+                        })),
+                      );
+                      const failedCount = results.filter((result) => result.status === 'rejected').length;
+                      results.forEach((result) => {
+                        if (result.status === 'rejected') console.error(result.reason);
+                      });
+                      let refreshed = false;
+                      try {
+                        setCategories(await categoriesApi.getAllIncludingInactive() || []);
+                        refreshed = true;
+                      } catch (refreshError) {
+                        console.error(refreshError);
+                      }
+                      if (failedCount > 0) {
+                        setToast(refreshed
+                          ? `${failedCount}件のカテゴリに適用できませんでした。保存済みの状態を再読み込みしました`
+                          : `${failedCount}件のカテゴリに適用できず、保存状態の再読み込みにも失敗しました`);
+                      } else if (refreshed) {
+                        setToast('テーマ配色を適用しました');
+                      } else {
+                        setToast('テーマ配色を保存しましたが、画面の再読み込みに失敗しました');
+                      }
+                    } catch (e) {
+                      console.error(e);
+                      setToast('テーマ配色を適用できませんでした');
+                    } finally {
+                      setIsApplyingPalette(false);
+                    }
+                  }}
+                >
+                  {isApplyingPalette ? '適用中…' : 'テーマ配色を適用'}
+                </button>
+                <button className="recurring-add-btn" onClick={() => setEditCategory('new')} disabled={isApplyingPalette}>+ 追加</button>
               </div>
-            ))}
-            {categories.filter((c) => !!c.ownerEmail).length === 0 && <div className="empty-state"><p>個人カテゴリがありません</p></div>}
-          </div>
-          {editCategory && (
-            <CategoryModal
-              initial={editCategory === 'new' || editCategory === 'new-personal' ? undefined : editCategory}
-              categories={categories}
-              ownerEmail={editCategory === 'new-personal' ? user?.email : undefined}
-              onSave={handleSaveCategory}
-              onDelete={editCategory !== 'new' && editCategory !== 'new-personal' ? () => handleDeleteCategory(editCategory.id) : undefined}
-              onClose={() => setEditCategory(null)}
-            />
+              <p className="settings-palette-help">テーマ配色を適用すると、共有・個人を含む全カテゴリの保存色が置き換わります。</p>
+              {/* 共有カテゴリ */}
+              <div style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-muted)', padding: '8px 16px 0' }}>共有カテゴリ</div>
+              <div className="settings-list">
+                {categories.filter((c) => !c.ownerEmail).map((cat) => (
+                  <div
+                    key={cat.id}
+                    className={`settings-item ${!cat.isActive ? 'inactive' : ''}`}
+                    aria-disabled={isApplyingPalette}
+                    onClick={() => { if (!isApplyingPalette) setEditCategory(cat); }}
+                  >
+                    <div className="settings-item-color" style={{ background: categoryDisplayColor(cat.color) }} />
+                    <div className="settings-item-body">
+                      <span className="settings-item-name">{cat.name}</span>
+                      <span className="settings-item-meta">
+                        {!cat.isExpense && <span className="settings-item-badge">収入</span>}
+                        {!cat.isActive && <span className="settings-item-badge inactive-badge">無効</span>}
+                        <span className="settings-item-order">#{cat.sortOrder}</span>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {categories.filter((c) => !c.ownerEmail).length === 0 && <div className="empty-state"><p>共有カテゴリがありません</p></div>}
+              </div>
+
+              {/* 個人カテゴリ */}
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px 0' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-muted)' }}>個人カテゴリ</span>
+                <button className="recurring-add-btn" onClick={() => setEditCategory('new-personal')} disabled={isApplyingPalette}>+ 追加</button>
+              </div>
+              <div className="settings-list">
+                {categories.filter((c) => !!c.ownerEmail).map((cat) => (
+                  <div
+                    key={cat.id}
+                    className={`settings-item ${!cat.isActive ? 'inactive' : ''}`}
+                    aria-disabled={isApplyingPalette}
+                    onClick={() => { if (!isApplyingPalette) setEditCategory(cat); }}
+                  >
+                    <div className="settings-item-color" style={{ background: categoryDisplayColor(cat.color) }} />
+                    <div className="settings-item-body">
+                      <span className="settings-item-name">{cat.name}</span>
+                      <span className="settings-item-meta">
+                        {!cat.isExpense && <span className="settings-item-badge">収入</span>}
+                        {!cat.isActive && <span className="settings-item-badge inactive-badge">無効</span>}
+                        <span className="settings-item-order">#{cat.sortOrder}</span>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {categories.filter((c) => !!c.ownerEmail).length === 0 && <div className="empty-state"><p>個人カテゴリがありません</p></div>}
+              </div>
+              {editCategory && (
+                <CategoryModal
+                  initial={editCategory === 'new' || editCategory === 'new-personal' ? undefined : editCategory}
+                  categories={categories}
+                  ownerEmail={editCategory === 'new-personal' ? user?.email : undefined}
+                  onSave={handleSaveCategory}
+                  onDelete={editCategory !== 'new' && editCategory !== 'new-personal' ? () => handleDeleteCategory(editCategory.id) : undefined}
+                  onClose={() => setEditCategory(null)}
+                />
+              )}
+            </>
           )}
-        </>
-      )}
 
-      {/* 場所タブ */}
-      {tab === 'places' && (
-        <>
-          <div className="settings-add-row">
-            <button className="recurring-add-btn" onClick={() => setEditPlace('new')}>+ 追加</button>
-          </div>
-          <div className="settings-list">
-            {places.map((p) => (
-              <div
-                key={p.id}
-                className={`settings-item ${!p.isActive ? 'inactive' : ''}`}
-                onClick={() => setEditPlace(p)}
-              >
-                <div className="settings-item-body">
-                  <span className="settings-item-name">{p.name}</span>
-                  <span className="settings-item-meta">
-                    {!p.isActive && <span className="settings-item-badge inactive-badge">無効</span>}
-                    <span className="settings-item-order">#{p.sortOrder}</span>
-                  </span>
-                </div>
+          {/* 場所タブ */}
+          {tab === 'places' && (
+            <>
+              <div className="settings-add-row">
+                <button className="recurring-add-btn" onClick={() => setEditPlace('new')}>+ 追加</button>
               </div>
-            ))}
-            {places.length === 0 && <div className="empty-state"><p>場所がありません</p></div>}
-          </div>
-          {editPlace && (
-            <PlaceModal
-              initial={editPlace === 'new' ? undefined : editPlace}
-              onSave={handleSavePlace}
-              onDelete={editPlace !== 'new' ? () => handleDeletePlace(editPlace.id) : undefined}
-              onClose={() => setEditPlace(null)}
-            />
+              <div className="settings-list">
+                {places.map((p) => (
+                  <div
+                    key={p.id}
+                    className={`settings-item ${!p.isActive ? 'inactive' : ''}`}
+                    onClick={() => setEditPlace(p)}
+                  >
+                    <div className="settings-item-body">
+                      <span className="settings-item-name">{p.name}</span>
+                      <span className="settings-item-meta">
+                        {!p.isActive && <span className="settings-item-badge inactive-badge">無効</span>}
+                        <span className="settings-item-order">#{p.sortOrder}</span>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {places.length === 0 && <div className="empty-state"><p>場所がありません</p></div>}
+              </div>
+              {editPlace && (
+                <PlaceModal
+                  initial={editPlace === 'new' ? undefined : editPlace}
+                  onSave={handleSavePlace}
+                  onDelete={editPlace !== 'new' ? () => handleDeletePlace(editPlace.id) : undefined}
+                  onClose={() => setEditPlace(null)}
+                />
+              )}
+            </>
           )}
-        </>
-      )}
 
-      {/* 支払元タブ */}
-      {tab === 'payers' && (
-        <>
-          <div className="settings-add-row">
-            <button className="recurring-add-btn" onClick={() => setEditPayer('new')}>+ 追加</button>
-          </div>
-          <div className="settings-list">
-            {payers.map((p) => (
-              <div
-                key={p.id}
-                className={`settings-item ${!p.isActive ? 'inactive' : ''}`}
-                onClick={() => setEditPayer(p)}
-              >
-                <div className="settings-item-body">
-                  <span className="settings-item-name">{p.name}</span>
-                  <span className="settings-item-meta">
-                    {p.trackBalance && <span className="settings-item-badge">残額追跡</span>}
-                    {!p.isActive && <span className="settings-item-badge inactive-badge">無効</span>}
-                    <span className="settings-item-order">#{p.sortOrder}</span>
-                  </span>
-                </div>
+          {/* 支払元タブ */}
+          {tab === 'payers' && (
+            <>
+              <div className="settings-add-row">
+                <button className="recurring-add-btn" onClick={() => setEditPayer('new')}>+ 追加</button>
               </div>
-            ))}
-            {payers.length === 0 && <div className="empty-state"><p>支払元がありません</p></div>}
-          </div>
-          {editPayer && (
-            <PayerModal
-              initial={editPayer === 'new' ? undefined : editPayer}
-              onSave={handleSavePayer}
-              onDelete={editPayer !== 'new' ? () => handleDeletePayer(editPayer.id) : undefined}
-              onClose={() => setEditPayer(null)}
-            />
+              <div className="settings-list">
+                {payers.map((p) => (
+                  <div
+                    key={p.id}
+                    className={`settings-item ${!p.isActive ? 'inactive' : ''}`}
+                    onClick={() => setEditPayer(p)}
+                  >
+                    <div className="settings-item-body">
+                      <span className="settings-item-name">{p.name}</span>
+                      <span className="settings-item-meta">
+                        {p.trackBalance && <span className="settings-item-badge">残額追跡</span>}
+                        {!p.isActive && <span className="settings-item-badge inactive-badge">無効</span>}
+                        <span className="settings-item-order">#{p.sortOrder}</span>
+                      </span>
+                    </div>
+                  </div>
+                ))}
+                {payers.length === 0 && <div className="empty-state"><p>支払元がありません</p></div>}
+              </div>
+              {editPayer && (
+                <PayerModal
+                  initial={editPayer === 'new' ? undefined : editPayer}
+                  onSave={handleSavePayer}
+                  onDelete={editPayer !== 'new' ? () => handleDeletePayer(editPayer.id) : undefined}
+                  onClose={() => setEditPayer(null)}
+                />
+              )}
+            </>
           )}
         </>
       )}
