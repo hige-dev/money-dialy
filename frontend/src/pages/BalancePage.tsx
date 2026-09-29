@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { MonthPicker } from '../components/MonthPicker';
 import { expensesApi, categoriesApi } from '../services/api';
 import type { Expense, Category } from '../types';
+import { categoryDisplayColor } from '../utils/categoryColors';
 
 function todayString(): string {
   const d = new Date();
@@ -46,7 +47,7 @@ export function BalancePage() {
   );
 
   const colorMap = useMemo(
-    () => new Map(categories.map((c) => [c.id, c.color])),
+    () => new Map(categories.map((c) => [c.id, categoryDisplayColor(c.color)])),
     [categories],
   );
 
@@ -92,17 +93,17 @@ export function BalancePage() {
         <>
           {/* 収支サマリー */}
           <div className="summary-totals">
-            <div className="summary-total-amount" style={{ color: balance >= 0 ? '#059669' : '#dc2626' }}>
+            <div className="summary-total-amount" style={{ color: balance >= 0 ? '#c6e6cc' : '#ffc2b8' }}>
               {balance >= 0 ? '+' : ''}&yen;{balance.toLocaleString()}
             </div>
             <div className="summary-comparison">
               <div className="summary-comparison-item">
                 <span>収入: </span>
-                <span style={{ color: '#059669' }}>&yen;{incomeTotal.toLocaleString()}</span>
+                <span style={{ color: '#c6e6cc' }}>&yen;{incomeTotal.toLocaleString()}</span>
               </div>
               <div className="summary-comparison-item">
                 <span>支出: </span>
-                <span style={{ color: '#dc2626' }}>&yen;{expenseTotal.toLocaleString()}</span>
+                <span style={{ color: '#ffc2b8' }}>&yen;{expenseTotal.toLocaleString()}</span>
               </div>
             </div>
           </div>
@@ -115,7 +116,7 @@ export function BalancePage() {
               </div>
               {incomeItems.map((item) => (
                 <div key={item.categoryId} className="summary-category-item">
-                  <div className="summary-category-color" style={{ background: colorMap.get(item.categoryId) || '#059669' }} />
+                  <div className="summary-category-color" style={{ background: colorMap.get(item.categoryId) || '#74867d' }} />
                   <span className="summary-category-name">{item.name}</span>
                   <span className="summary-category-amount">&yen;{item.amount.toLocaleString()}</span>
                   <span className="summary-category-percent">
@@ -134,7 +135,7 @@ export function BalancePage() {
               </div>
               {expenseItems.map((item) => (
                 <div key={item.categoryId} className="summary-category-item">
-                  <div className="summary-category-color" style={{ background: colorMap.get(item.categoryId) || '#dc2626' }} />
+                  <div className="summary-category-color" style={{ background: colorMap.get(item.categoryId) || '#74867d' }} />
                   <span className="summary-category-name">{item.name}</span>
                   <span className="summary-category-amount">&yen;{item.amount.toLocaleString()}</span>
                   <span className="summary-category-percent">

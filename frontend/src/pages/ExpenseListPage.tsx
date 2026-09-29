@@ -4,6 +4,7 @@ import { MonthPicker } from '../components/MonthPicker';
 import { expensesApi, categoriesApi, placesApi, payersApi } from '../services/api';
 import type { Expense, Category, Place, Payer, Visibility } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { categoryDisplayColor } from '../utils/categoryColors';
 
 function todayString(): string {
   const d = new Date();
@@ -158,7 +159,7 @@ export function ExpenseListPage() {
 
   const month = getMonth(date);
 
-  const colorMap = useMemo(() => new Map(categories.map((c) => [c.id, c.color])), [categories]);
+  const colorMap = useMemo(() => new Map(categories.map((c) => [c.id, categoryDisplayColor(c.color)])), [categories]);
   const catNameMap = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
 
   // カテゴリが「未分類」または登録済みカテゴリ一覧に存在しないものを未分類と判定
@@ -296,7 +297,7 @@ export function ExpenseListPage() {
         <div className="recent-imports-container">
           <div className="recent-imports-header">
             <span>📥 最近の自動取込 (最新{recentImports.length}件)</span>
-            <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: '#166534' }}>タップして分類</span>
+            <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--color-green)' }}>タップして分類</span>
           </div>
           <div className="recent-imports-list">
             {recentImports.map((item) => (

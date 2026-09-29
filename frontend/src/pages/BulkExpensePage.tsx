@@ -184,7 +184,7 @@ export function BulkExpensePage() {
             <option value="summary">金額のみ公開</option>
             <option value="private">自分のみ</option>
           </select>
-          {isPersonalCategory && <span style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>個人カテゴリのため自動設定</span>}
+          {isPersonalCategory && <span style={{ fontSize: '0.75rem', color: 'var(--color-muted)', marginTop: '4px' }}>個人カテゴリのため自動設定</span>}
         </div>
 
         <div className="input-field">
@@ -219,12 +219,12 @@ export function BulkExpensePage() {
 
         {/* プレビュー */}
         {canSubmit && (
-          <div style={{ background: '#f9fafb', borderRadius: '8px', padding: '12px', fontSize: '0.85rem', color: '#374151' }}>
+          <div style={{ background: 'var(--color-paper)', border: '1px solid var(--color-border)', borderRadius: '14px', padding: '12px', fontSize: '0.85rem', color: 'var(--color-text)' }}>
             <div style={{ fontWeight: 600, marginBottom: '4px' }}>
               {catNameMap.get(selectedCategory) || selectedCategory} &yen;{numAmount.toLocaleString()} &times; {months.length}件
               = &yen;{(numAmount * months.length).toLocaleString()}
             </div>
-            <div style={{ color: '#6b7280', fontSize: '0.8rem' }}>
+            <div style={{ color: 'var(--color-muted)', fontSize: '0.8rem' }}>
               {months[0]} 〜 {months[months.length - 1]}（毎月{numDay}日）
             </div>
           </div>

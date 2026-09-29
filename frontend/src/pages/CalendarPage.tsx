@@ -3,6 +3,7 @@ import { MonthPicker } from '../components/MonthPicker';
 import { expensesApi, categoriesApi, placesApi, payersApi } from '../services/api';
 import type { Expense, Category, Place, Payer, Visibility } from '../types';
 import { useAuth } from '../contexts/AuthContext';
+import { categoryDisplayColor } from '../utils/categoryColors';
 
 function todayString(): string {
   const d = new Date();
@@ -50,7 +51,7 @@ function intensityColor(amount: number, refAmount: number): string {
   if (amount === 0 || refAmount === 0) return 'transparent';
   const ratio = Math.min(amount / refAmount, 1);
   const alpha = 0.1 + ratio * 0.4;
-  return `rgba(239, 68, 68, ${alpha})`;
+  return `rgba(36, 75, 61, ${alpha})`;
 }
 
 function formatDateShort(dateStr: string): string {
@@ -250,7 +251,7 @@ export function CalendarPage() {
   };
 
   const expenseCategories = useMemo(() => new Set(categories.filter((c) => c.isExpense).map((c) => c.id)), [categories]);
-  const colorMap = useMemo(() => new Map(categories.map((c) => [c.id, c.color])), [categories]);
+  const colorMap = useMemo(() => new Map(categories.map((c) => [c.id, categoryDisplayColor(c.color)])), [categories]);
   const catNameMap = useMemo(() => new Map(categories.map((c) => [c.id, c.name])), [categories]);
 
   // カテゴリが「未分類」または登録済みカテゴリ一覧に存在しないものを未分類と判定
@@ -376,7 +377,7 @@ export function CalendarPage() {
             <div className="recent-imports-container">
               <div className="recent-imports-header">
                 <span>📥 最近の自動取込 (最新{recentImports.length}件)</span>
-                <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: '#166534' }}>タップして分類</span>
+                <span style={{ fontSize: '0.75rem', fontWeight: 'normal', color: 'var(--color-green)' }}>タップして分類</span>
               </div>
               <div className="recent-imports-list">
                 {recentImports.map((item) => (

@@ -1,19 +1,23 @@
-/* ===== Layout ===== */
+/* ===== レイアウト ===== */
 .app-layout {
+  position: relative;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  width: min(100%, 480px);
+  min-height: 100svh;
   max-width: 480px;
   margin: 0 auto;
-  background: #fff;
+  overflow-x: clip;
+  background: var(--color-paper);
 }
 
 .main-content {
   flex: 1;
-  padding-bottom: 60px; /* BottomNav分 */
+  min-width: 0;
+  padding-bottom: calc(84px + env(safe-area-inset-bottom));
 }
 
-/* ===== Login ===== */
+/* ===== ログイン ===== */
 .login-container {
   display: flex;
   flex-direction: column;
@@ -26,21 +30,21 @@
 
 .login-container h1 {
   font-size: 1.5rem;
-  color: #1f2937;
+  color: var(--color-ink);
   margin: 0;
 }
 
 .login-container p {
-  color: #6b7280;
+  color: var(--color-muted);
   margin: 0;
 }
 
 .error-message {
-  color: #ef4444;
+  color: var(--color-danger);
   font-size: 0.875rem;
 }
 
-/* ===== Loading ===== */
+/* ===== 読み込み表示 ===== */
 .loading-spinner {
   display: flex;
   flex-direction: column;
@@ -48,14 +52,14 @@
   justify-content: center;
   min-height: 200px;
   gap: 12px;
-  color: #6b7280;
+  color: var(--color-muted);
 }
 
 .spinner {
   width: 32px;
   height: 32px;
-  border: 3px solid #e5e7eb;
-  border-top-color: #3b82f6;
+  border: 3px solid var(--color-border);
+  border-top-color: var(--color-green);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }
@@ -64,18 +68,21 @@
   to { transform: rotate(360deg); }
 }
 
-/* ===== Bottom Navigation ===== */
+/* ===== 下部ナビゲーション ===== */
 .bottom-nav {
   position: fixed;
+  z-index: 100;
   bottom: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 100%;
-  max-width: 480px;
+  width: min(100%, 480px);
+  min-height: calc(74px + env(safe-area-inset-bottom));
   display: flex;
-  background: #fff;
-  border-top: 1px solid #e5e7eb;
-  z-index: 100;
+  padding: 6px max(10px, env(safe-area-inset-right)) calc(6px + env(safe-area-inset-bottom)) max(10px, env(safe-area-inset-left));
+  background: rgba(255, 255, 255, 0.97);
+  border-top: 1px solid var(--color-border);
+  box-shadow: 0 -5px 20px rgba(31, 53, 43, 0.035);
+  backdrop-filter: blur(14px);
 }
 
 .bottom-nav-item {
@@ -84,16 +91,20 @@
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 8px 0;
-  color: #9ca3af;
+  min-width: 0;
+  min-height: 56px;
+  padding: 6px 0;
+  border-radius: 12px;
+  color: var(--color-faint);
   text-decoration: none;
   font-size: 0.7rem;
+  font-weight: 600;
   gap: 2px;
   transition: color 0.15s;
 }
 
 .bottom-nav-item.active {
-  color: #3b82f6;
+  color: var(--color-green);
 }
 
 .bottom-nav-item svg {
@@ -101,15 +112,15 @@
   height: 24px;
 }
 
-/* ===== Page Header ===== */
+/* ===== ページ見出し ===== */
 .page-header {
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 12px 16px;
   gap: 12px;
-  border-bottom: 1px solid #e5e7eb;
-  background: #fff;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-card);
   position: sticky;
   top: 0;
   z-index: 50;
@@ -135,35 +146,35 @@
   cursor: pointer;
 }
 
-/* ===== Date Picker (MonthPicker) ===== */
+/* ===== 日付選択（MonthPicker） ===== */
 .date-picker {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 12px 16px;
-  gap: 16px;
+  padding: 14px 16px;
+  gap: 12px;
 }
 
 .date-picker-btn {
   background: none;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
-  padding: 6px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  padding: 9px 12px;
   font-size: 1rem;
   cursor: pointer;
-  color: #374151;
+  color: var(--color-text);
   line-height: 1;
 }
 
 .date-picker-btn:active {
-  background: #f3f4f6;
+  background: var(--color-surface);
 }
 
 .date-picker-label {
   font-size: 1rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--color-ink);
   min-width: 160px;
   text-align: center;
   background: none;
@@ -171,17 +182,17 @@
   cursor: pointer;
 }
 
-/* ===== Month Calendar Popup ===== */
+/* ===== 月選択ポップアップ ===== */
 .month-calendar-popup {
   position: absolute;
   top: 100%;
   left: 50%;
   transform: translateX(-50%);
-  background: #fff;
-  border: 1px solid #d1d5db;
-  border-radius: 12px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  padding: 12px;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  box-shadow: var(--shadow-card);
+  padding: 14px;
   z-index: 500;
   width: 280px;
   animation: popup-in 0.15s ease;
@@ -202,7 +213,7 @@
 .month-calendar-year {
   font-size: 1rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--color-ink);
 }
 
 .month-calendar-grid {
@@ -217,47 +228,47 @@
   border-radius: 8px;
   background: none;
   font-size: 0.85rem;
-  color: #374151;
+  color: var(--color-text);
   cursor: pointer;
   transition: background 0.1s;
 }
 
 .month-calendar-cell:hover {
-  background: #f3f4f6;
+  background: var(--color-surface);
 }
 
 .month-calendar-cell.today {
   font-weight: 600;
-  color: #3b82f6;
+  color: var(--color-green);
 }
 
 .month-calendar-cell.selected {
-  background: #3b82f6;
+  background: var(--color-green);
   color: #fff;
   font-weight: 600;
 }
 
 .month-calendar-cell.selected:hover {
-  background: #2563eb;
+  background: var(--color-green-dark);
 }
 
 .month-calendar-today-btn {
   width: 100%;
   margin-top: 8px;
   padding: 8px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #f9fafb;
+  background: var(--color-paper);
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--color-muted);
   cursor: pointer;
 }
 
 .month-calendar-today-btn:hover {
-  background: #f3f4f6;
+  background: var(--color-surface);
 }
 
-/* --- Day Calendar (date mode) --- */
+/* --- 日付選択カレンダー --- */
 .day-calendar-weekdays {
   display: grid;
   grid-template-columns: repeat(7, 1fr);
@@ -268,7 +279,7 @@
 .day-calendar-weekday {
   text-align: center;
   font-size: 0.7rem;
-  color: #9ca3af;
+  color: var(--color-faint);
   padding: 2px 0;
 }
 
@@ -282,7 +293,7 @@
   padding: 6px 0;
   border: none;
   border-radius: 6px;
-  background: #f3f4f6;
+  background: var(--color-surface);
   font-size: 0.8rem;
   cursor: pointer;
   text-align: center;
@@ -293,35 +304,40 @@
 }
 
 .day-calendar-cell:not(.empty):hover {
-  background: #e0e7ff;
+  background: var(--color-green-soft);
 }
 
 .day-calendar-cell.today {
-  border: 1.5px solid #3b82f6;
+  border: 1.5px solid var(--color-green);
 }
 
 .day-calendar-cell.selected {
-  background: #3b82f6;
+  background: var(--color-green);
   color: #fff;
   font-weight: 600;
 }
 
 .day-calendar-cell.selected:hover {
-  background: #2563eb;
+  background: var(--color-green-dark);
 }
 
-/* ===== Input Form ===== */
+/* ===== 入力フォーム ===== */
 .input-form {
-  padding: 12px 16px;
+  margin: 0 12px 16px;
+  padding: 18px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 15px;
 }
 
 .input-field label {
   display: block;
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--color-muted);
   margin-bottom: 4px;
   font-weight: 500;
 }
@@ -330,31 +346,32 @@
 .input-field input {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
   font-size: 1rem;
-  color: #374151;
+  color: var(--color-text);
   background: #fff;
 }
 
 .input-field select:focus,
 .input-field input:focus {
-  border-color: #3b82f6;
+  border-color: var(--color-green);
   outline: none;
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+  box-shadow: 0 0 0 2px rgba(36, 75, 61, 0.12);
 }
 
 .input-field input[type="number"] {
   font-size: 1.25rem;
   font-weight: 600;
+  color: var(--color-amount);
 }
 
 .input-submit-btn {
   width: 100%;
   padding: 14px;
   border: none;
-  border-radius: 10px;
-  background: #3b82f6;
+  border-radius: 13px;
+  background: var(--color-green);
   color: #fff;
   font-size: 1rem;
   font-weight: 700;
@@ -363,36 +380,43 @@
 }
 
 .input-submit-btn:active {
-  background: #2563eb;
+  background: var(--color-green-dark);
 }
 
 .input-submit-btn:disabled {
-  background: #93c5fd;
+  background: #a8c8ad;
   cursor: not-allowed;
 }
 
-/* ===== Expense List ===== */
+/* ===== 支出一覧 ===== */
 .expense-list {
-  padding: 0 12px;
+  padding: 0 12px 16px;
 }
 
 .expense-list-total {
-  padding: 12px 16px;
+  margin: 0 12px 10px;
+  padding: 14px 16px;
   text-align: center;
   font-size: 1.1rem;
   font-weight: 600;
-  color: #1f2937;
-  border-bottom: 1px solid #e5e7eb;
+  color: var(--color-amount);
+  border: 1px solid var(--color-border);
+  border-radius: 15px;
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
 }
 
-/* ===== Recent Imports & Filter Bar ===== */
+/* ===== 自動取込と絞り込み ===== */
 .expense-list-controls {
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 8px 16px;
-  background: #f9fafb;
-  border-bottom: 1px solid #e5e7eb;
+  margin: 0 12px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-card);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .uncategorized-filter-btn {
@@ -403,22 +427,22 @@
   font-size: 0.8rem;
   font-weight: 600;
   border-radius: 20px;
-  border: 1px solid #d1d5db;
+  border: 1px solid var(--color-border);
   background: #fff;
-  color: #4b5563;
+  color: var(--color-text);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .uncategorized-filter-btn.active {
-  background: #ef4444;
-  border-color: #ef4444;
+  background: var(--color-green);
+  border-color: var(--color-green);
   color: #fff;
 }
 
 .uncategorized-badge {
-  background: #ef4444;
-  color: #fff;
+  background: #f1e5c9;
+  color: #80612f;
   padding: 1px 6px;
   border-radius: 10px;
   font-size: 0.7rem;
@@ -427,13 +451,13 @@
 
 .uncategorized-filter-btn.active .uncategorized-badge {
   background: #fff;
-  color: #ef4444;
+  color: var(--color-green);
 }
 
 .recent-imports-toggle {
   background: none;
   border: none;
-  color: #3b82f6;
+  color: var(--color-green);
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
@@ -445,8 +469,8 @@
 .recent-imports-container {
   margin: 12px 16px;
   padding: 12px;
-  background: #f0fdf4;
-  border: 1px solid #bbf7d0;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
   border-radius: 10px;
 }
 
@@ -457,7 +481,7 @@
   margin-bottom: 8px;
   font-size: 0.85rem;
   font-weight: 700;
-  color: #166534;
+  color: var(--color-ink);
 }
 
 .recent-imports-list {
@@ -472,14 +496,14 @@
   align-items: center;
   padding: 8px 10px;
   background: #fff;
-  border: 1px solid #dcfce7;
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .recent-import-item:hover {
-  background: #f8fafc;
+  background: var(--color-surface);
 }
 
 .recent-import-left {
@@ -492,7 +516,7 @@
 .recent-import-title {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #1e293b;
+  color: var(--color-ink);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -502,12 +526,12 @@
   display: flex;
   gap: 6px;
   font-size: 0.7rem;
-  color: #64748b;
+  color: var(--color-muted);
 }
 
 .recent-import-tag {
-  background: #fee2e2;
-  color: #ef4444;
+  background: #f1e5c9;
+  color: #80612f;
   padding: 0 4px;
   border-radius: 4px;
   font-weight: 600;
@@ -524,37 +548,43 @@
 .recent-import-amount {
   font-size: 0.9rem;
   font-weight: 700;
-  color: #1e293b;
+  color: var(--color-amount);
 }
 
 .recent-import-date {
   font-size: 0.7rem;
-  color: #94a3b8;
+  color: var(--color-muted);
 }
 
 .recent-import-registered {
   font-size: 0.85rem;
-  color: #666;
+  color: var(--color-muted);
   margin-left: 0.5rem;
 }
 
 .expense-date-group {
-  margin-top: 12px;
+  margin: 12px 0 0;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 15px;
+  background: var(--color-card);
+  box-shadow: 0 4px 15px rgba(31, 53, 43, 0.035);
 }
 
 .expense-date-header {
   font-size: 0.8rem;
   font-weight: 600;
-  color: #6b7280;
-  padding: 0 4px 4px;
-  border-bottom: 1px solid #f3f4f6;
+  color: var(--color-muted);
+  padding: 9px 12px 7px;
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-green-soft);
 }
 
 .expense-item {
   display: flex;
   align-items: center;
-  padding: 10px 4px;
-  border-bottom: 1px solid #f9fafb;
+  padding: 11px 12px;
+  border-bottom: 1px solid #f0f2ed;
   gap: 8px;
 }
 
@@ -579,13 +609,13 @@
 .expense-item-category {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--color-text);
 }
 
 .expense-item-amount {
   font-size: 0.95rem;
   font-weight: 700;
-  color: #1f2937;
+  color: var(--color-amount);
 }
 
 .expense-item-meta {
@@ -597,14 +627,14 @@
 
 .expense-item-payer {
   font-size: 0.7rem;
-  color: #3b82f6;
+  color: var(--color-green);
   font-weight: 600;
   flex-shrink: 0;
 }
 
 .expense-item-memo {
   font-size: 0.75rem;
-  color: #9ca3af;
+  color: var(--color-faint);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -621,38 +651,38 @@
   border: none;
   padding: 4px;
   cursor: pointer;
-  color: #9ca3af;
+  color: var(--color-faint);
   border-radius: 4px;
 }
 
 .expense-action-btn:active {
-  background: #f3f4f6;
+  background: var(--color-surface);
 }
 
-/* ===== Payer Filter ===== */
+/* ===== 支払元の絞り込み ===== */
 .payer-filter {
   display: flex;
   gap: 6px;
-  padding: 8px 12px;
+  padding: 9px 12px;
   overflow-x: auto;
 }
 
 .payer-filter-btn {
   padding: 6px 14px;
-  border: 1px solid #d1d5db;
-  border-radius: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
   background: #fff;
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--color-muted);
   cursor: pointer;
   white-space: nowrap;
   transition: all 0.15s;
 }
 
 .payer-filter-btn.active {
-  background: #3b82f6;
+  background: var(--color-green);
   color: #fff;
-  border-color: #3b82f6;
+  border-color: var(--color-green);
   font-weight: 600;
 }
 
@@ -660,48 +690,58 @@
   transform: scale(0.96);
 }
 
-/* ===== Payer Balance ===== */
+/* ===== 支払元残高 ===== */
 .payer-balance {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
   gap: 6px;
-  padding: 8px 16px;
-  background: #f0fdf4;
-  border-bottom: 1px solid #e5e7eb;
+  margin: 0 12px 10px;
+  padding: 12px 14px;
+  border: 1px solid #dce8dc;
+  border-radius: 15px;
+  background: var(--color-green-soft);
 }
 
 .payer-balance-label {
   font-size: 0.8rem;
-  color: #374151;
+  color: var(--color-text);
   font-weight: 600;
 }
 
 .payer-balance-amount {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #16a34a;
+  color: var(--color-amount);
 }
 
 .payer-balance-amount.negative {
-  color: #ef4444;
+  color: var(--color-danger);
 }
 
 .payer-balance-detail {
   font-size: 0.7rem;
-  color: #9ca3af;
+  color: var(--color-faint);
 }
 
-/* ===== Summary ===== */
+/* ===== 集計 ===== */
 .summary-totals {
-  padding: 16px;
+  position: relative;
+  margin: 4px 12px 12px;
+  padding: 21px 18px 19px;
+  overflow: hidden;
+  border-radius: 20px;
+  color: #fff;
+  background: linear-gradient(132deg, #2d5948 0%, #1d4236 100%);
+  box-shadow: 0 13px 26px rgba(35, 75, 60, 0.15);
   text-align: center;
 }
 
 .summary-total-amount {
-  font-size: 1.5rem;
+  font-size: 1.8rem;
   font-weight: 700;
-  color: #1f2937;
+  color: #fff;
+  letter-spacing: -0.04em;
 }
 
 .summary-comparison {
@@ -710,22 +750,28 @@
   gap: 16px;
   margin-top: 8px;
   font-size: 0.8rem;
+  color: #d5e2d9;
 }
 
 .summary-comparison-item {
-  color: #6b7280;
+  color: #d5e2d9;
 }
 
 .summary-diff-positive {
-  color: #ef4444;
+  color: #ffc2b8;
 }
 
 .summary-diff-negative {
-  color: #22c55e;
+  color: #c6e6cc;
 }
 
 .summary-chart {
-  padding: 12px 16px;
+  margin: 10px 12px;
+  padding: 8px 15px 15px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
 }
 
 .summary-chart-header {
@@ -736,15 +782,16 @@
 
 .summary-chart h3 {
   font-size: 0.9rem;
-  color: #374151;
-  margin: 16px 0 8px;
+  color: var(--color-text);
+  margin: 8px 0 12px;
+  font-weight: 700;
 }
 
 .chart-expand-btn {
   background: none;
-  border: 1px solid #d1d5db;
-  border-radius: 6px;
-  color: #6b7280;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  color: var(--color-muted);
   font-size: 1rem;
   width: 32px;
   height: 32px;
@@ -755,7 +802,7 @@
 }
 
 .chart-expand-btn:hover {
-  background: #f3f4f6;
+  background: var(--color-surface);
 }
 
 .chart-scroll-container {
@@ -784,14 +831,19 @@
 }
 
 .summary-category-list {
-  padding: 0 16px 16px;
+  margin: 10px 12px 16px;
+  padding: 12px 15px 15px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
 }
 
 .summary-breakdown-tabs {
   display: flex;
   gap: 0;
   margin-bottom: 8px;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .summary-breakdown-tab {
@@ -802,14 +854,14 @@
   border-bottom: 2px solid transparent;
   font-size: 0.85rem;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--color-muted);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .summary-breakdown-tab.active {
-  color: #3b82f6;
-  border-bottom-color: #3b82f6;
+  color: var(--color-green);
+  border-bottom-color: var(--color-green);
   font-weight: 600;
 }
 
@@ -820,24 +872,24 @@
 .recurring-link-btn {
   width: 100%;
   padding: 12px;
-  background: #f9fafb;
-  border: 1px solid #d1d5db;
+  background: var(--color-paper);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
-  color: #374151;
+  color: var(--color-text);
   font-size: 0.85rem;
   font-weight: 500;
   cursor: pointer;
 }
 
 .recurring-link-btn:hover {
-  background: #f3f4f6;
+  background: var(--color-surface);
 }
 
 .summary-category-item {
   display: flex;
   align-items: center;
   padding: 8px 0;
-  border-bottom: 1px solid #f3f4f6;
+  border-bottom: 1px solid var(--color-surface);
   gap: 8px;
 }
 
@@ -851,27 +903,28 @@
 .summary-category-name {
   flex: 1;
   font-size: 0.85rem;
-  color: #374151;
+  color: var(--color-text);
 }
 
 .summary-category-amount {
   font-size: 0.85rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--color-amount);
 }
 
 .summary-category-percent {
   font-size: 0.75rem;
-  color: #9ca3af;
+  color: var(--color-faint);
   width: 40px;
   text-align: right;
 }
 
-/* ===== Edit Modal ===== */
+/* ===== 編集ダイアログ ===== */
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.5);
+  padding: 12px;
+  background: rgba(24, 42, 32, 0.45);
   display: flex;
   align-items: flex-end;
   justify-content: center;
@@ -879,8 +932,10 @@
 }
 
 .modal-content {
-  background: #fff;
-  border-radius: 16px 16px 0 0;
+  background: var(--color-card);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  box-shadow: 0 18px 52px rgba(31, 53, 43, 0.18);
   width: 100%;
   max-width: 480px;
   max-height: 90vh;
@@ -905,7 +960,7 @@
   border: none;
   font-size: 1.5rem;
   cursor: pointer;
-  color: #6b7280;
+  color: var(--color-muted);
   padding: 4px;
 }
 
@@ -925,7 +980,7 @@
 .modal-field label {
   display: block;
   font-size: 0.8rem;
-  color: #6b7280;
+  color: var(--color-muted);
   margin-bottom: 4px;
 }
 
@@ -933,15 +988,19 @@
 .modal-field select {
   width: 100%;
   padding: 10px 12px;
-  border: 1px solid #d1d5db;
-  border-radius: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
   font-size: 1rem;
+}
+
+.modal-field input[type="number"] {
+  color: var(--color-amount);
 }
 
 .modal-field input[type="checkbox"] {
   width: 18px;
   height: 18px;
-  accent-color: #3b82f6;
+  accent-color: var(--color-green);
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -956,37 +1015,37 @@
   flex: 1;
   padding: 12px;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   font-size: 1rem;
   font-weight: 600;
   cursor: pointer;
 }
 
 .modal-btn-primary {
-  background: #3b82f6;
+  background: var(--color-green);
   color: #fff;
 }
 
 .modal-btn-secondary {
-  background: #f3f4f6;
-  color: #374151;
+  background: var(--color-surface);
+  color: var(--color-text);
 }
 
 .modal-btn-danger {
   background: #fee2e2;
-  color: #ef4444;
+  color: var(--color-danger);
 }
 
-/* ===== Toast ===== */
+/* ===== 通知 ===== */
 .toast {
   position: fixed;
-  bottom: 72px;
+  bottom: calc(84px + env(safe-area-inset-bottom));
   left: 50%;
   transform: translateX(-50%);
-  background: #1f2937;
+  background: var(--color-ink);
   color: #fff;
   padding: 10px 20px;
-  border-radius: 8px;
+  border-radius: 13px;
   font-size: 0.85rem;
   z-index: 300;
   animation: toast-in 0.3s ease;
@@ -1003,62 +1062,69 @@
   }
 }
 
-/* ===== Empty State ===== */
+/* ===== 空状態 ===== */
 .empty-state {
   text-align: center;
   padding: 40px 20px;
-  color: #9ca3af;
+  color: var(--color-faint);
 }
 
 .empty-state p {
   margin: 4px 0;
 }
 
-/* ===== Calendar ===== */
+/* ===== カレンダー ===== */
 .calendar-total {
   text-align: center;
   font-size: 0.9rem;
   font-weight: 600;
-  color: #374151;
+  color: var(--color-text);
   padding: 4px 0 8px;
 }
 
 .calendar-grid {
   display: grid;
-  grid-template-columns: repeat(7, 1fr);
-  gap: 1px;
-  padding: 0 8px 16px;
-  background: #e5e7eb;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 3px 2px;
+  margin: 0 12px 14px;
+  padding: 10px 8px 12px;
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
 }
 
 .calendar-header {
-  background: #f9fafb;
+  background: #fbfcfa;
   text-align: center;
   font-size: 0.7rem;
   font-weight: 600;
-  color: #6b7280;
-  padding: 6px 0;
+  color: var(--color-muted);
+  padding: 7px 0;
 }
 
-.calendar-header.sun { color: #ef4444; }
-.calendar-header.sat { color: #3b82f6; }
+.calendar-header.sun { color: var(--color-danger); }
+.calendar-header.sat { color: var(--color-green); }
 
 .calendar-cell {
-  background: #fff;
-  min-height: 52px;
-  padding: 4px;
+  min-width: 0;
+  min-height: 58px;
+  padding: 6px 4px;
+  border-radius: 10px;
+  background: var(--color-card);
   display: flex;
   flex-direction: column;
   cursor: pointer;
 }
 
 .calendar-cell.empty {
-  background: #f9fafb;
+  background: transparent;
   cursor: default;
 }
 
 .calendar-cell.today .calendar-day {
-  background: #3b82f6;
+  background: var(--color-green);
   color: #fff;
   border-radius: 50%;
   width: 22px;
@@ -1068,42 +1134,42 @@
   justify-content: center;
 }
 
-.calendar-cell.sun .calendar-day { color: #ef4444; }
-.calendar-cell.sat .calendar-day { color: #3b82f6; }
+.calendar-cell.sun .calendar-day { color: var(--color-danger); }
+.calendar-cell.sat .calendar-day { color: var(--color-green); }
 
 .calendar-day {
   font-size: 0.75rem;
   font-weight: 500;
-  color: #374151;
+  color: var(--color-text);
   line-height: 1;
 }
 
 .calendar-amount {
   font-size: 0.6rem;
-  color: #6b7280;
+  color: var(--color-amount);
   margin-top: auto;
   text-align: right;
 }
 
-/* ===== Recurring ===== */
+/* ===== 定期支出 ===== */
 .recurring-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 16px;
+  padding: 14px 16px;
 }
 
 .recurring-header h2 {
   font-size: 1.1rem;
   margin: 0;
-  color: #1f2937;
+  color: var(--color-ink);
 }
 
 .recurring-add-btn {
-  background: #3b82f6;
+  background: var(--color-green);
   color: #fff;
   border: none;
-  border-radius: 8px;
+  border-radius: 12px;
   padding: 8px 16px;
   font-size: 0.85rem;
   font-weight: 500;
@@ -1117,8 +1183,12 @@
 .recurring-item {
   display: flex;
   align-items: center;
-  padding: 12px;
-  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 8px;
+  padding: 13px;
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  background: var(--color-card);
+  box-shadow: 0 4px 14px rgba(31, 53, 43, 0.035);
   cursor: pointer;
   gap: 8px;
 }
@@ -1140,13 +1210,13 @@
 .recurring-item-category {
   font-size: 0.9rem;
   font-weight: 500;
-  color: #1f2937;
+  color: var(--color-ink);
 }
 
 .recurring-item-amount {
   font-size: 0.9rem;
   font-weight: 600;
-  color: #1f2937;
+  color: var(--color-amount);
 }
 
 .recurring-item-meta {
@@ -1154,19 +1224,19 @@
   gap: 8px;
   margin-top: 4px;
   font-size: 0.75rem;
-  color: #6b7280;
+  color: var(--color-muted);
 }
 
 .recurring-item-badge {
   background: #fef2f2;
-  color: #ef4444;
+  color: var(--color-danger);
   padding: 1px 6px;
   border-radius: 4px;
   font-size: 0.7rem;
 }
 
 .recurring-register-btn {
-  background: #3b82f6;
+  background: var(--color-green);
   color: #fff;
   border: none;
   border-radius: 6px;
@@ -1178,13 +1248,13 @@
 }
 
 .recurring-register-btn:hover {
-  background: #2563eb;
+  background: var(--color-green-dark);
 }
 
 .recurring-delete-btn {
   background: none;
   border: none;
-  color: #9ca3af;
+  color: var(--color-faint);
   font-size: 1.2rem;
   cursor: pointer;
   padding: 4px 8px;
@@ -1198,10 +1268,10 @@
   cursor: pointer;
 }
 
-/* ===== Settings ===== */
+/* ===== 設定 ===== */
 .settings-tabs {
   display: flex;
-  border-bottom: 1px solid #e5e7eb;
+  border-bottom: 1px solid var(--color-border);
 }
 
 .settings-tab {
@@ -1212,20 +1282,21 @@
   border-bottom: 2px solid transparent;
   font-size: 0.85rem;
   font-weight: 500;
-  color: #6b7280;
+  color: var(--color-muted);
   cursor: pointer;
   transition: all 0.15s;
 }
 
 .settings-tab.active {
-  color: #3b82f6;
-  border-bottom-color: #3b82f6;
+  color: var(--color-green);
+  border-bottom-color: var(--color-green);
   font-weight: 600;
 }
 
 .settings-add-row {
   display: flex;
   justify-content: flex-end;
+  gap: 8px;
   padding: 12px 16px 4px;
 }
 
@@ -1236,8 +1307,11 @@
 .settings-item {
   display: flex;
   align-items: center;
-  padding: 12px 4px;
-  border-bottom: 1px solid #f3f4f6;
+  margin-bottom: 7px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 13px;
+  background: var(--color-card);
   cursor: pointer;
   gap: 10px;
 }
@@ -1247,7 +1321,7 @@
 }
 
 .settings-item:active {
-  background: #f9fafb;
+  background: var(--color-paper);
 }
 
 .settings-item-color {
@@ -1267,7 +1341,7 @@
 .settings-item-name {
   font-size: 0.9rem;
   font-weight: 500;
-  color: #1f2937;
+  color: var(--color-ink);
 }
 
 .settings-item-meta {
@@ -1280,18 +1354,18 @@
   font-size: 0.7rem;
   padding: 1px 6px;
   border-radius: 4px;
-  background: #eff6ff;
-  color: #3b82f6;
+  background: var(--color-green-soft);
+  color: var(--color-green);
 }
 
 .settings-item-badge.inactive-badge {
   background: #fef2f2;
-  color: #ef4444;
+  color: var(--color-danger);
 }
 
 .settings-item-order {
   font-size: 0.75rem;
-  color: #9ca3af;
+  color: var(--color-faint);
 }
 
 .settings-color-picker {
@@ -1310,6 +1384,144 @@
 }
 
 .settings-color-swatch.selected {
-  border-color: #1f2937;
-  box-shadow: 0 0 0 2px #fff, 0 0 0 4px #1f2937;
+  border-color: var(--color-ink);
+  box-shadow: 0 0 0 2px #fff, 0 0 0 4px var(--color-ink);
+}
+
+.settings-hub {
+  display: grid;
+  gap: 14px;
+  padding: 4px 16px 20px;
+}
+
+.settings-hub-section {
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 18px;
+  background: var(--color-card);
+  box-shadow: var(--shadow-card);
+}
+
+.settings-hub-section h3,
+.settings-master-detail h3 {
+  margin: 0;
+  color: var(--color-ink);
+  font-size: 0.98rem;
+}
+
+.settings-hub-section > p,
+.settings-master-detail p {
+  margin: 5px 0 13px;
+  color: var(--color-muted);
+  font-size: 0.78rem;
+}
+
+.settings-hub-links {
+  display: grid;
+  gap: 8px;
+}
+
+.settings-hub-link {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 13px;
+  background: var(--color-paper);
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.settings-hub-link:hover {
+  border-color: #bdcfc1;
+  background: var(--color-green-soft);
+}
+
+.settings-hub-link span:first-child {
+  color: var(--color-ink);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.settings-hub-link span:last-child {
+  color: var(--color-muted);
+  font-size: 0.73rem;
+}
+
+.settings-master-detail {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 2px 16px 4px;
+}
+
+.settings-master-detail > div {
+  min-width: 0;
+  padding-top: 4px;
+}
+
+.settings-master-detail p {
+  margin-bottom: 0;
+}
+
+.settings-back-button {
+  flex: 0 0 auto;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 11px;
+  background: var(--color-card);
+  color: var(--color-green);
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.settings-back-button:disabled,
+.settings-palette-button:disabled,
+.settings-add-row .recurring-add-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+
+.settings-palette-button {
+  padding: 8px 10px;
+  background: var(--color-surface);
+  color: var(--color-text);
+  font-size: 0.75rem;
+}
+
+.settings-palette-help {
+  margin: 2px 16px 8px;
+  color: var(--color-muted);
+  font-size: 0.72rem;
+  line-height: 1.5;
+}
+
+.category-color-preview {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  color: var(--color-muted);
+  font-size: 0.75rem;
+}
+
+.category-color-preview-swatch {
+  width: 16px;
+  height: 16px;
+  border: 1px solid rgba(32, 45, 40, 0.14);
+  border-radius: 5px;
+}
+
+.category-color-preview code {
+  margin-left: auto;
+  color: var(--color-text);
+  font-size: 0.72rem;
 }

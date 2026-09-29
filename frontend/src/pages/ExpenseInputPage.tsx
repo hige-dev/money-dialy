@@ -151,7 +151,7 @@ export function ExpenseInputPage() {
             <option value="summary">金額のみ公開</option>
             <option value="private">自分のみ</option>
           </select>
-          {isPersonalCategory && <span style={{ fontSize: '0.75rem', color: '#6b7280', marginTop: '4px' }}>個人カテゴリのため自動設定</span>}
+          {isPersonalCategory && <span style={{ fontSize: '0.75rem', color: 'var(--color-muted)', marginTop: '4px' }}>個人カテゴリのため自動設定</span>}
         </div>
         <button
           className="input-submit-btn"
