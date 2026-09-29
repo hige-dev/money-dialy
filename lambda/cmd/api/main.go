@@ -11,6 +11,7 @@ import (
 )
 
 func main() {
+	handler.ValidateEnvironment()
 	lambda.Start(route)
 }
 

@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import type { User, Role } from '../types';
-import { isAllowedEmail } from '../config';
+import { isAllowedEmail, isLocalBackend } from '../config';
 import { setAuthToken, setOnAuthError, usersApi } from '../services/api';
 
 interface AuthContextType {
@@ -46,6 +46,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
   useEffect(() => {
     (async () => {
       try {
+        if (isLocalBackend) {
+          const localToken = 'money-diary-local';
+          setAuthToken(localToken);
+          const role = await fetchRole();
+          setUser({ email: 'local@example.test', name: 'ローカル検証ユーザー', role });
+          setToken(localToken);
+          return;
+        }
         const storedUser = localStorage.getItem(STORAGE_KEY);
         const storedToken = localStorage.getItem(TOKEN_KEY);
 

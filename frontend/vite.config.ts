@@ -71,6 +71,9 @@ function lambdaProxy(functionName: string): Plugin {
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   return {
-    plugins: [react(), lambdaProxy(env.LAMBDA_FUNCTION_NAME || '')],
+    plugins: [react(), ...(mode === 'offline' ? [] : [lambdaProxy(env.LAMBDA_FUNCTION_NAME || '')])],
+    server: mode === 'offline' ? {
+      proxy: { '/api': { target: env.LOCAL_API_URL || 'http://127.0.0.1:8080', changeOrigin: true } },
+    } : undefined,
   }
 })

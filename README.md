@@ -71,7 +71,7 @@ Lambda Function URL (Go) → DynamoDB
 ### 前提条件
 
 - AWS CLI v2 + AWS アカウント
-- Go 1.21+
+- Go 1.25.5+
 - Node.js 20+
 - AWS SAM CLI
 - Google Cloud プロジェクト（OAuth 用）
@@ -191,19 +191,128 @@ aws s3 mb s3://your-frontend-bucket
 
 ## ローカル開発
 
+### AWS ログインなしで検証する
+
+Go 1.25.5+、Docker Compose、Node.js 20+ を使用します。AWS CLI、SAM CLI、Google OAuth の設定は不要です。
+
+```bash
+# ターミナル 1: DynamoDB Local と API を起動
+cd lambda
+make dynamo-local
+make local                 # http://127.0.0.1:8080/api
+
+# ターミナル 2: フロントエンドを起動
+cd frontend
+npm install
+npm run dev:local          # http://localhost:5173
+```
+
+ローカル専用ユーザー `local@example.test`（管理者）で自動ログインします。
+API は本番と同じハンドラー・サービス・DynamoDB クエリを実行し、
+初回起動時にローカル用のテーブル、ユーザー、食費カテゴリ、現金の支払元を作成します。
+再起動しても既存のデータを保持します。データは Docker のボリュームに保存します。
+
+フロントエンドの `offline` モードは開発サーバーでのみ有効です。
+API サーバーは `127.0.0.1` にのみ待ち受け、DynamoDB の接続先もループバック IP に限定します。
+本番 Lambda は従来どおり Google ID Token を検証します。
+
+API 単体の確認例:
+
+```bash
+curl http://127.0.0.1:8080/api \
+  -H 'Content-Type: application/json' \
+  -H 'X-Auth-Token: money-diary-local' \
+  -d '{"action":"getCategories"}'
+```
+
+検証コマンド:
+
+```bash
+cd lambda
+make test
+# DynamoDB Local 起動後に CRUD・認証・集計の統合テストも実行
+LOCAL_DYNAMO_TEST_ENDPOINT=http://127.0.0.1:8000 go test ./...
+```
+
+`make test` は接続先未指定の統合テストを省略し、AWS に接続せず単体テストを実行します。
+ローカルでは CloudFront/IAM、Google ID Token の署名検証、EventBridge の起動、
+Gmail/GAS と Google Sheets バックアップの実接続は検証できません。
+
+停止する場合は開発サーバーと API を終了し、`lambda` で次を実行します。
+データは保持されます。
+
+```bash
+docker compose -f compose.local.yaml down
+```
+
+ポートを変更する場合は `go run ./cmd/local -port 8081 -dynamo-endpoint http://127.0.0.1:8001`
+で API を起動します。フロントエンドは `LOCAL_API_URL=http://127.0.0.1:8081 npm run dev:local`
+で接続先を変更できます（DynamoDB のポート割当も Compose 側で変更してください）。
+
+### 日次バックアップからローカル DB に同期する
+
+バックアップの `expenses` シートを CSV でダウンロードするか、Google Sheets API から直接読み取れます。
+AWS 認証情報は使用せず、接続先をループバック上の DynamoDB Local に限定します。
+Google Sheets の内容は変更しません。
+
+```bash
+# DynamoDB Local と API を起動した後、リポジトリのルートから実行
+./scripts/sync-local-from-backup.sh -file ~/Downloads/expenses.csv -dry-run
+./scripts/sync-local-from-backup.sh -file ~/Downloads/expenses.csv
+
+# ローカルの支出をバックアップと一致させる場合（バックアップにない支出は削除）
+./scripts/sync-local-from-backup.sh -file ~/Downloads/expenses.csv -replace
+```
+
+Google Sheets から直接取得する場合は、読み取り権限のある Google 認証情報を使用します。
+`GOOGLE_APPLICATION_CREDENTIALS` に Google の認証 JSON ファイルを指定するか、
+`GOOGLE_ACCESS_TOKEN` に Sheets の読み取り権限を持つ OAuth アクセストークンを設定してください。
+サービスアカウントを使う場合は、そのアカウントに対象のスプレッドシートを閲覧共有してください。
+必要なスコープは [`spreadsheets.readonly`](https://developers.google.com/workspace/sheets/api/scopes) です。
+認証ファイルはリポジトリの外に保存します。
+
+```bash
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/google-credentials.json \
+  ./scripts/sync-local-from-backup.sh -spreadsheet-id <スプレッドシートID> -dry-run
+GOOGLE_APPLICATION_CREDENTIALS=/path/to/google-credentials.json \
+  ./scripts/sync-local-from-backup.sh -spreadsheet-id <スプレッドシートID>
+```
+
+`-sheet` でシート名（既定: `expenses`）、`-dynamo-endpoint` でローカル DB のポートを変更できます。
+通常は ID ごとの追加・更新を行い、再実行しても支出が重複しません。
+`-dry-run` は件数と追加マスタ・削除対象の件数を表示し、テーブル作成も含めて書き込みを行いません。
+事前に `make local` でローカルのテーブルを初期化してください。
+全行の形式と重複 ID を検証し、不正な行や空のバックアップがある場合は同期を停止します。
+書き込み全体はトランザクションではないため、通信エラーで途中終了した場合は再実行してください。
+同期後はブラウザーを再読み込みしてフロントエンドのキャッシュを更新します。
+
+バックアップの列順は `id,date,payer,category,amount,memo,place,createdBy,createdAt,updatedAt,visibility` です。
+`visibility` がない旧形式も使用できます。日時、ID、公開範囲、元の作成者を保持し、月別集計も再計算します。
+カテゴリ名を既存のローカル ID に対応付け、不足するカテゴリ・支払元・場所は補完します。
+バックアップにはマスタの色・集計除外・所有者・残高追跡などの設定が含まれないため、完全には復元できません。
+新規カテゴリは「収入」以外を支出扱いにし、必要な設定はローカルの設定画面で調整してください。
+同名カテゴリが複数ある場合は対応先を特定できないため停止します。
+
+元の作成者の `private` 支出はローカル専用ユーザーから見えません。
+検証用に全取込データの作成者を変更する場合は `-created-by local@example.test` を指定します。
+この変更はローカル DB にだけ反映されます。
+
+### デプロイ済み Lambda を使う
+
 ```bash
 cd frontend
 npm install
-npm run dev    # http://localhost:5173
+npm run dev
 ```
 
-Vite のカスタムプラグインが `/api` リクエストを `aws lambda invoke` に転送します。
-Lambda がデプロイ済みであれば、ローカルで API 連携の動作確認ができます。
+通常の開発モードでは Vite のカスタムプラグインが `/api` リクエストを
+`aws lambda invoke` に転送します。この経路は AWS ログインと Google ログインが必要です。
 
 ## スクリプト
 
 | スクリプト | 説明 |
 |-----------|------|
+| `scripts/sync-local-from-backup.sh` | 日次バックアップから DynamoDB Local へ同期 |
 | `scripts/deploy-backend.sh` | Lambda ビルド + SAM デプロイ |
 | `scripts/deploy-frontend.sh` | フロントエンドビルド + S3 同期 + CloudFront 無効化 |
 

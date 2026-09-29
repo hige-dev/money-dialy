@@ -284,7 +284,7 @@ func (c *Client) GetCategories(ctx context.Context) ([]model.Category, error) {
 	if err := attributevalue.UnmarshalListOfMaps(items, &dbItems); err != nil {
 		return nil, fmt.Errorf("category のアンマーシャルに失敗: %w", err)
 	}
-	var categories []model.Category
+	categories := make([]model.Category, 0)
 	for _, item := range dbItems {
 		if item.IsActive {
 			categories = append(categories, model.Category{
@@ -316,7 +316,7 @@ func (c *Client) GetPlaces(ctx context.Context) ([]model.Place, error) {
 	if err := attributevalue.UnmarshalListOfMaps(items, &dbItems); err != nil {
 		return nil, fmt.Errorf("place のアンマーシャルに失敗: %w", err)
 	}
-	var places []model.Place
+	places := make([]model.Place, 0)
 	for _, item := range dbItems {
 		if item.IsActive {
 			places = append(places, model.Place{
@@ -343,7 +343,7 @@ func (c *Client) GetPayers(ctx context.Context) ([]model.Payer, error) {
 	if err := attributevalue.UnmarshalListOfMaps(items, &dbItems); err != nil {
 		return nil, fmt.Errorf("payer のアンマーシャルに失敗: %w", err)
 	}
-	var payers []model.Payer
+	payers := make([]model.Payer, 0)
 	for _, item := range dbItems {
 		if item.IsActive {
 			payers = append(payers, model.Payer{
