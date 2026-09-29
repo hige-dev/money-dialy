@@ -12,7 +12,7 @@ import { SettingsPage } from './pages/SettingsPage';
 import { BalancePage } from './pages/BalancePage';
 import { BulkExpensePage } from './pages/BulkExpensePage';
 import { AdminMappingsPage } from './pages/AdminMappingsPage';
-import { config } from './config';
+import { config, isLocalBackend } from './config';
 import './App.css';
 
 const TOKEN_REFRESH_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000; // 7日
@@ -49,12 +49,12 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   }
 
   if (!user) {
-    return <LoginButton />;
+    return isLocalBackend ? <p>ローカル API に接続できません。バックエンドを起動して再読み込みしてください。</p> : <LoginButton />;
   }
 
   return (
     <>
-      <TokenRefresher />
+      {!isLocalBackend && <TokenRefresher />}
       {children}
     </>
   );
@@ -93,14 +93,15 @@ function AppRoutes() {
 }
 
 function App() {
-  return (
-    <GoogleOAuthProvider clientId={config.googleClientId}>
-      <AuthProvider>
-        <BrowserRouter>
-          <AppRoutes />
-        </BrowserRouter>
-      </AuthProvider>
-    </GoogleOAuthProvider>
+  const content = (
+    <AuthProvider>
+      <BrowserRouter>
+        <AppRoutes />
+      </BrowserRouter>
+    </AuthProvider>
+  );
+  return isLocalBackend ? content : (
+    <GoogleOAuthProvider clientId={config.googleClientId}>{content}</GoogleOAuthProvider>
   );
 }
 

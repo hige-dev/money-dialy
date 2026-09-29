@@ -1,8 +1,11 @@
 import type { Config } from './types';
 
+// ローカル専用モードは開発サーバーでのみ有効。
+export const isLocalBackend = import.meta.env.DEV && import.meta.env.MODE === 'offline';
+
 export const config: Config = {
   googleClientId: import.meta.env.VITE_GOOGLE_CLIENT_ID || '',
-  apiUrl: import.meta.env.VITE_API_URL || '',
+  apiUrl: isLocalBackend ? '/api' : import.meta.env.VITE_API_URL || '',
   allowedEmails: (import.meta.env.VITE_ALLOWED_EMAILS || '').split(',').filter(Boolean),
 };
 

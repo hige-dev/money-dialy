@@ -72,6 +72,18 @@ func getHeader(headers map[string]string, key string) string {
 
 // Handle は Lambda ハンドラー
 func Handle(ctx context.Context, event events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+	return handle(ctx, event, dynamo.NewClient, auth.VerifyIDToken)
+}
+
+// NewHandler は指定した保存先とトークン検証関数を使うハンドラーを生成する。
+// 本番の Handle は常に通常の AWS クライアントと Google 認証を使用する。
+func NewHandler(client *dynamo.Client, verify func(context.Context, string) (*model.AuthUser, error)) func(context.Context, events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+	return func(ctx context.Context, event events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
+		return handle(ctx, event, func(context.Context) (*dynamo.Client, error) { return client, nil }, verify)
+	}
+}
+
+func handle(ctx context.Context, event events.APIGatewayV2HTTPRequest, newClient func(context.Context) (*dynamo.Client, error), verify func(context.Context, string) (*model.AuthUser, error)) (events.APIGatewayV2HTTPResponse, error) {
 	origin := getHeader(event.Headers, "origin")
 
 	// CORS preflight
@@ -93,7 +105,7 @@ func Handle(ctx context.Context, event events.APIGatewayV2HTTPRequest) (events.A
 	}
 
 	// DynamoDB クライアント初期化
-	client, err := dynamo.NewClient(ctx)
+	client, err := newClient(ctx)
 	if err != nil {
 		log.Printf("DynamoDB client error: %v", err)
 		return errorResponse(500, "サーバーエラーが発生しました", origin), nil
@@ -133,7 +145,7 @@ func Handle(ctx context.Context, event events.APIGatewayV2HTTPRequest) (events.A
 		return errorResponse(401, "Token required", origin), nil
 	}
 
-	user, err := auth.VerifyIDToken(ctx, token)
+	user, err := verify(ctx, token)
 	if err != nil {
 		log.Printf("Token verification failed: %v", err)
 		return errorResponse(401, "Unauthorized", origin), nil
@@ -408,7 +420,8 @@ func HandleBackup(ctx context.Context) (any, error) {
 	return map[string]string{"status": "ok"}, nil
 }
 
-func init() {
+// ValidateEnvironment は本番起動時に必須の環境変数を確認する。
+func ValidateEnvironment() {
 	// 環境変数チェック
 	required := []string{"DYNAMO_EXPENSE_TABLE", "DYNAMO_MASTER_TABLE", "GOOGLE_CLIENT_ID"}
 	for _, key := range required {
