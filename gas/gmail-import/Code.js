@@ -44,29 +44,11 @@ function processRakutenCardEmails() {
   // OR条件を用いてGmail内を検索
   const subjectsQuery = TARGET_SUBJECTS.map(sub => `subject:"${sub}"`).join(' OR ');
 
-  // 1. これまでの条件をまとめる
-  const baseConditions = [
+  const query = [
     'is:unread',
-    'label:ProcessedForLINE',
     'from:info@mail.rakuten-card.co.jp',
     `(${subjectsQuery})`
   ].join(' ');
-
-const TARGET_EMAILS = [
-  'joe.yshr380+rpay@gmail.com',
-  'joe.yshr380+amazon@gmail.com'
-];
-
-const targetEmailQuery = TARGET_EMAILS.map(sub => `"${sub}"`).join(' OR '); // Use plain email strings to avoid '+' parsing issues
-
-const baseConditions2 = [
-    'is:unread',
-    'label:ProcessedForLINE',
-    `(${targetEmailQuery})`
-  ].join(' ');
-
-  // 2. 全体をカッコで囲んで OR 条件を追加
-  const query = `(${baseConditions}) OR (${baseConditions2})`;
 
   Logger.log(`検索条件: ${query}`);
 
