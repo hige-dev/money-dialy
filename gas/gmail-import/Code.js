@@ -29,14 +29,16 @@ function setConfig(backendUrl, webhookSecret) {
 function processRakutenCardEmails() {
   const config = getScriptConfig();
   if (!config.backendUrl || !config.webhookSecret) {
-    Logger.log('ERROR: BACKEND_URL または WEBHOOK_SECRET が未設定です。setConfig(url, secret) を実行してください。');
+    Logger.log('設定エラー: BACKEND_URL または WEBHOOK_SECRET が未設定です。setConfig(url, secret) を実行してください。');
     return;
   }
 
   // 対象の件名を配列で定義
   const TARGET_SUBJECTS = [
     'カード利用のお知らせ(家族会員ご利用分)',
-    'カード利用のお知らせ(本人ご利用分)'
+    'カード利用のお知らせ(本人ご利用分)',
+    '【速報版】カード利用のお知らせ(家族会員ご利用分)',
+    '【速報版】カード利用のお知らせ(本人ご利用分)'
   ];
 
   // OR条件を用いてGmail内を検索
@@ -66,7 +68,7 @@ const baseConditions2 = [
   // 2. 全体をカッコで囲んで OR 条件を追加
   const query = `(${baseConditions}) OR (${baseConditions2})`;
 
-  console.log('Generated Query:', query);
+  Logger.log(`検索条件: ${query}`);
 
   const threads = GmailApp.search(query, 0, 20);
   const labelProcessed = getOrCreateLabel('処理済み');
@@ -80,7 +82,7 @@ const baseConditions2 = [
 
       // 件名がいずれかの対象件名と完全一致するものだけ処理
       const subject = message.getSubject().trim();
-      if (!TARGET_SUBJECTS.includes(subject)) {
+      if (!TARGET_SUBJECTS.includes(subject) || !isRakutenSender(message.getFrom())) {
         continue;
       }
 
@@ -125,20 +127,24 @@ const baseConditions2 = [
         }
 
         if (isSuccess) {
-          Logger.log(`[OK] Message ID: ${message.getId()} - ${message.getSubject()} | Res: ${resText}`);
+          Logger.log(`取込成功: ${message.getId()} - ${message.getSubject()}`);
           message.markRead();
           thread.addLabel(labelProcessed);
           successCount++;
         } else {
-          Logger.log(`[FAIL] HTTP: ${code}, ValidJSON: ${jsonRes !== null}, Res: ${resText.substring(0, 150)}...`);
+          Logger.log(`取込失敗: HTTP ${code}、JSON応答 ${jsonRes !== null}、内容 ${resText.substring(0, 150)}`);
         }
       } catch (e) {
-        Logger.log(`[ERROR] Fetch failed: ${e.toString()}`);
+        Logger.log(`送信失敗: ${e.toString()}`);
       }
     }
   }
 
   Logger.log(`完了: ${successCount} 件のメールを処理しました。`);
+}
+
+function isRakutenSender(from) {
+  return /(?:^|<)info@mail\.rakuten-card\.co\.jp(?:>|$)/i.test(from.trim());
 }
 
 /**
@@ -153,7 +159,7 @@ function getOrCreateLabel(name) {
 }
 
 /**
- * 定期実行トリガーの登録 (15分置きに実行)
+ * 定期実行トリガーの登録 (1時間置きに実行)
  */
 function createTimeDrivenTrigger() {
   // 既存トリガーの重複登録を防止
@@ -164,7 +170,7 @@ function createTimeDrivenTrigger() {
     .everyHours(1)
     .create();
 
-  Logger.log('15分おきの自動実行トリガーを作成しました。');
+  Logger.log('1時間おきの自動実行トリガーを作成しました。');
 }
 
 /**

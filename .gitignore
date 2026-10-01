@@ -33,4 +33,5 @@ Thumbs.db
 *.log
 
 # GAS
-gas/.clasp.json
+gas/gmail-import/.clasp.json
+gas/line-notifier/.clasp.json

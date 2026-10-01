@@ -1,7 +1,7 @@
 {
   "name": "money-diary-gas",
   "version": "1.0.0",
-  "description": "Google Apps Script for Money Diary Gmail Auto Import",
+  "description": "家計簿のGmail自動取込用Google Apps Script",
   "main": "Code.js",
   "scripts": {
     "login": "clasp login",
