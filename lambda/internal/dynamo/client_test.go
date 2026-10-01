@@ -4,8 +4,61 @@ import (
 	"testing"
 
 	"github.com/aws/aws-sdk-go-v2/feature/dynamodb/attributevalue"
+	"github.com/aws/aws-sdk-go-v2/service/dynamodb/types"
 	"money-diary/internal/model"
 )
+
+func TestImportGroupRevisionUpdateExpressions(t *testing.T) {
+	tests := []struct {
+		name       string
+		revision   int
+		condition  string
+		wantValues map[string]string
+	}{
+		{
+			name:      "初回登録",
+			revision:  0,
+			condition: "attribute_not_exists(revision)",
+			wantValues: map[string]string{
+				":next": "1",
+			},
+		},
+		{
+			name:      "既存リビジョン更新",
+			revision:  4,
+			condition: "revision = :old",
+			wantValues: map[string]string{
+				":old":  "4",
+				":next": "5",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			update := importGroupRevisionUpdate("master", "group", tt.revision)
+			if got := *update.ConditionExpression; got != tt.condition {
+				t.Errorf("条件式が不正です: got %q, want %q", got, tt.condition)
+			}
+			if got := *update.UpdateExpression; got != "SET revision = :next" {
+				t.Errorf("更新式が不正です: got %q", got)
+			}
+			if len(update.ExpressionAttributeValues) != len(tt.wantValues) {
+				t.Fatalf("式の値の数が不正です: got %d, want %d", len(update.ExpressionAttributeValues), len(tt.wantValues))
+			}
+			for key, want := range tt.wantValues {
+				value, ok := update.ExpressionAttributeValues[key].(*types.AttributeValueMemberN)
+				if !ok {
+					t.Errorf("%s の数値が設定されていません", key)
+					continue
+				}
+				if value.Value != want {
+					t.Errorf("%s の値が不正です: got %q, want %q", key, value.Value, want)
+				}
+			}
+		})
+	}
+}
 
 func TestExpenseImportFieldsRoundTrip(t *testing.T) {
 	original := &model.Expense{

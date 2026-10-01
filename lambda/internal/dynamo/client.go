@@ -1063,6 +1063,29 @@ func (c *Client) GetImportGroupRevision(ctx context.Context, key string) (int, e
 	return 0, nil
 }
 
+func importGroupRevisionUpdate(tableName string, groupKey string, revision int) *types.Update {
+	condition := "revision = :old"
+	values := map[string]types.AttributeValue{
+		":next": &types.AttributeValueMemberN{Value: strconv.Itoa(revision + 1)},
+	}
+	if revision == 0 {
+		condition = "attribute_not_exists(revision)"
+	} else {
+		values[":old"] = &types.AttributeValueMemberN{Value: strconv.Itoa(revision)}
+	}
+
+	return &types.Update{
+		TableName: aws.String(tableName),
+		Key: map[string]types.AttributeValue{
+			"type": &types.AttributeValueMemberS{Value: "expenseImportGroup"},
+			"id":   &types.AttributeValueMemberS{Value: groupKey},
+		},
+		UpdateExpression:          aws.String("SET revision = :next"),
+		ConditionExpression:       aws.String(condition),
+		ExpressionAttributeValues: values,
+	}
+}
+
 // CommitGroupedImport は照合キー単位の更新と支出・取込記録を一括確定する。
 // mode は new、pending、detail のいずれかを指定する。
 func (c *Client) CommitGroupedImport(ctx context.Context, groupKey string, revision int, markerKey string, e *model.Expense, previousUpdatedAt string, mode string) (bool, error) {
@@ -1070,23 +1093,7 @@ func (c *Client) CommitGroupedImport(ctx context.Context, groupKey string, revis
 	if err != nil {
 		return false, err
 	}
-	groupCondition := "revision = :old"
-	if revision == 0 {
-		groupCondition = "attribute_not_exists(revision)"
-	}
-	group := types.TransactWriteItem{Update: &types.Update{
-		TableName: &c.masterTable,
-		Key: map[string]types.AttributeValue{
-			"type": &types.AttributeValueMemberS{Value: "expenseImportGroup"},
-			"id":   &types.AttributeValueMemberS{Value: groupKey},
-		},
-		UpdateExpression:    aws.String("SET revision = :next"),
-		ConditionExpression: aws.String(groupCondition),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":old":  &types.AttributeValueMemberN{Value: strconv.Itoa(revision)},
-			":next": &types.AttributeValueMemberN{Value: strconv.Itoa(revision + 1)},
-		},
-	}}
+	group := types.TransactWriteItem{Update: importGroupRevisionUpdate(c.masterTable, groupKey, revision)}
 	items := []types.TransactWriteItem{group}
 	if markerKey != "" {
 		items = append(items, types.TransactWriteItem{Put: &types.Put{
