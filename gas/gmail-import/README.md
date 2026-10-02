@@ -37,7 +37,7 @@ GASエディタの「プロジェクトの設定」→「スクリプト プロ�
 | `BACKEND_URL` | Lambdaの `WebhookUrl` |
 | `WEBHOOK_SECRET` | バックエンドの `WebhookSecret` と同じ値 |
 
-GASエディタのトリガー画面から `processRakutenCardEmails` を時間主導で登録できます。`createTimeDrivenTrigger` を実行すると、同関数の既存トリガーを削除して1時間ごとのトリガーを登録します。取込対象は未読メールのうち、次のいずれかに該当するものです。
+GASエディタのトリガー画面から `processPaymentEmails` を時間主導で登録できます。`createTimeDrivenTrigger` を実行すると、同関数の既存トリガーを削除して1時間ごとのトリガーを登録します。`deleteTriggers` は同関数の既存トリガーを削除します。取込対象は未読メールのうち、次のいずれかに該当するものです。
 
 - 楽天カード: 送信元が `info@mail.rakuten-card.co.jp` で、件名が次のいずれかと完全一致するメール。
   - `カード利用のお知らせ(家族会員ご利用分)`

@@ -38,7 +38,7 @@ function setConfig(backendUrl, webhookSecret) {
 /**
  * 未読の利用通知メールを検索し、バックエンド API に送信する
  */
-function processRakutenCardEmails() {
+function processPaymentEmails() {
   const config = getScriptConfig();
   if (!config.backendUrl || !config.webhookSecret) {
     Logger.log('設定エラー: BACKEND_URL または WEBHOOK_SECRET が未設定です。setConfig(url, secret) を実行してください。');
@@ -142,7 +142,7 @@ function processRakutenCardEmails() {
   Logger.log(`完了: ${successCount} 件のメールを処理しました。`);
 }
 
-function isRakutenSender(from) {
+function isRakutenCardSender(from) {
   return /(?:^|<)info@mail\.rakuten-card\.co\.jp(?:>|$)/i.test(from.trim());
 }
 
@@ -162,7 +162,7 @@ function isRakutenPayEmail(from, subject) {
 }
 
 function isSupportedImportEmail(from, subject, body) {
-  const isRakutenCardEmail = RAKUTEN_CARD_SUBJECTS.includes(subject.trim()) && isRakutenSender(from);
+  const isRakutenCardEmail = RAKUTEN_CARD_SUBJECTS.includes(subject.trim()) && isRakutenCardSender(from);
   return isRakutenCardEmail ||
     isSmbcEmail(from, subject, body) ||
     isRakutenPayEmail(from, subject);
@@ -186,7 +186,7 @@ function createTimeDrivenTrigger() {
   // 既存トリガーの重複登録を防止
   deleteTriggers();
 
-  ScriptApp.newTrigger('processRakutenCardEmails')
+  ScriptApp.newTrigger('processPaymentEmails')
     .timeBased()
     .everyHours(1)
     .create();
@@ -200,7 +200,7 @@ function createTimeDrivenTrigger() {
 function deleteTriggers() {
   const triggers = ScriptApp.getProjectTriggers();
   for (const trigger of triggers) {
-    if (trigger.getHandlerFunction() === 'processRakutenCardEmails') {
+    if (trigger.getHandlerFunction() === 'processPaymentEmails') {
       ScriptApp.deleteTrigger(trigger);
     }
   }

@@ -5,6 +5,11 @@ const path = require('node:path');
 
 const sent = [];
 const read = [];
+const deletedTriggers = [];
+const triggers = [
+  { handlerFunction: 'processPaymentEmails', getHandlerFunction() { return this.handlerFunction; } },
+  { handlerFunction: 'forwardEmailToLine', getHandlerFunction() { return this.handlerFunction; } },
+];
 let searchQuery;
 const searchCalls = [];
 function message(id, subject, from, body = '利用明細') {
@@ -70,13 +75,29 @@ const context = {
     },
   },
   Logger: { log: () => {} },
+  ScriptApp: {
+    getProjectTriggers: () => [...triggers],
+    deleteTrigger: trigger => {
+      deletedTriggers.push(trigger.handlerFunction);
+      triggers.splice(triggers.indexOf(trigger), 1);
+    },
+    newTrigger: handlerFunction => ({
+      timeBased: () => ({
+        everyHours: hours => ({
+          create: () => {
+            triggers.push({ handlerFunction, getHandlerFunction() { return this.handlerFunction; }, hours });
+          },
+        }),
+      }),
+    }),
+  },
 };
 vm.createContext(context);
 vm.runInContext(fs.readFileSync(path.join(__dirname, 'Code.js'), 'utf8'), context);
-assert.equal(context.isRakutenSender('楽天カード株式会社 <info@mail.rakuten-card.co.jp>'), true);
-assert.equal(context.isRakutenSender('info@mail.rakuten-card.co.jp'), true);
-assert.equal(context.isRakutenSender('偽装 <info@mail.rakuten-card.co.jp.evil.example>'), false);
-context.processRakutenCardEmails();
+assert.equal(context.isRakutenCardSender('楽天カード株式会社 <info@mail.rakuten-card.co.jp>'), true);
+assert.equal(context.isRakutenCardSender('info@mail.rakuten-card.co.jp'), true);
+assert.equal(context.isRakutenCardSender('偽装 <info@mail.rakuten-card.co.jp.evil.example>'), false);
+context.processPaymentEmails();
 assert.deepEqual(sent, ['速報', '詳細', '三井住友送信元', '三井住友本文', '楽天ペイ']);
 assert.deepEqual(read, ['速報', '詳細', '三井住友送信元', '三井住友本文', '楽天ペイ']);
 assert.deepEqual(
@@ -90,4 +111,14 @@ assert.equal(
 );
 assert.equal(searchQuery.includes('ProcessedForLINE'), false);
 assert.equal(searchQuery.includes('joe.yshr380'), false);
-console.log('3系統の件名と送信元・本文判定: 成功');
+
+context.createTimeDrivenTrigger();
+assert.deepEqual(deletedTriggers, ['processPaymentEmails']);
+assert.equal(triggers.some(trigger => trigger.handlerFunction === 'forwardEmailToLine'), true);
+assert.equal(triggers.filter(trigger => trigger.handlerFunction === 'processPaymentEmails').length, 1);
+assert.equal(triggers.find(trigger => trigger.handlerFunction === 'processPaymentEmails').hours, 1);
+
+context.deleteTriggers();
+assert.equal(triggers.some(trigger => trigger.handlerFunction === 'processPaymentEmails'), false);
+assert.equal(triggers.some(trigger => trigger.handlerFunction === 'forwardEmailToLine'), true);
+console.log('3系統の件名と送信元・本文判定、トリガー管理: 成功');
