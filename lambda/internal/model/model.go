@@ -2,17 +2,31 @@ package model
 
 // Expense は支出データ
 type Expense struct {
-	ID         string `json:"id"`
-	Date       string `json:"date"`
-	Payer      string `json:"payer"`
-	Category   string `json:"category"`
-	Amount     int    `json:"amount"`
-	Memo       string `json:"memo"`
-	Place      string `json:"place"`
-	Visibility string `json:"visibility"` // "public" | "summary" | "private"（空="" は "public" 扱い）
-	CreatedBy  string `json:"createdBy"`
-	CreatedAt  string `json:"createdAt"`
-	UpdatedAt  string `json:"updatedAt"`
+	ID                   string `json:"id"`
+	Date                 string `json:"date"`
+	Payer                string `json:"payer"`
+	Category             string `json:"category"`
+	Amount               int    `json:"amount"`
+	Memo                 string `json:"memo"`
+	Place                string `json:"place"`
+	Visibility           string `json:"visibility"` // "public" | "summary" | "private"（空="" は "public" 扱い）
+	CreatedBy            string `json:"createdBy"`
+	CreatedAt            string `json:"createdAt"`
+	UpdatedAt            string `json:"updatedAt"`
+	ImportStatus         string `json:"importStatus,omitempty"`
+	ImportCard           string `json:"importCard,omitempty"`
+	ImportDate           string `json:"importDate,omitempty"`
+	ImportUser           string `json:"importUser,omitempty"`
+	ImportAmount         int    `json:"importAmount,omitempty"`
+	ImportMessageID      string `json:"importMessageId,omitempty"`
+	ImportIndex          int    `json:"importIndex,omitempty"`
+	DetailMessageID      string `json:"detailMessageId,omitempty"`
+	DetailIndex          int    `json:"detailIndex,omitempty"`
+	PreliminaryMessageID string `json:"preliminaryMessageId,omitempty"`
+	PreliminaryIndex     int    `json:"preliminaryIndex,omitempty"`
+	ManualCategory       bool   `json:"manualCategory,omitempty"`
+	ManualPayer          bool   `json:"manualPayer,omitempty"`
+	ManualMemo           bool   `json:"manualMemo,omitempty"`
 }
 
 // ExpenseInput は支出登録・更新のリクエスト
@@ -24,7 +38,8 @@ type ExpenseInput struct {
 	Memo         string `json:"memo"`
 	Place        string `json:"place"`
 	Visibility   string `json:"visibility"`
-	IsOtherPlace bool   `json:"isOtherPlace"` // true → UI shows "Other + manual input"
+	IsOtherPlace bool   `json:"isOtherPlace"` // その他の場所を手入力する
+	ImportUser   string `json:"-"`
 }
 
 // Place は場所マスタ

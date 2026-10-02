@@ -307,7 +307,7 @@ export function ExpenseListPage() {
                 onClick={() => setEditTarget(item)}
               >
                 <div className="recent-import-left">
-                  <span className="recent-import-title">{item.place || item.memo || '利用通知'}</span>
+                  <span className="recent-import-title">{item.place || item.memo || '利用通知'} {item.importStatus === 'pending' && <span>詳細待ち</span>}</span>
                   <div className="recent-import-meta">
                     <span>{item.payer}</span>
                     {isUncategorized(item) ? (
@@ -354,7 +354,7 @@ export function ExpenseListPage() {
                     />
                     <div className="expense-item-body">
                       <div className="expense-item-top">
-                        <span className="expense-item-category">{isMasked ? '個人出費' : (catNameMap.get(item.category) || item.category)}</span>
+                        <span className="expense-item-category">{isMasked ? '個人出費' : (catNameMap.get(item.category) || item.category)} {!isMasked && item.importStatus === 'pending' && <span>詳細待ち</span>}</span>
                         <span className="expense-item-amount">&yen;{item.amount.toLocaleString()}</span>
                       </div>
                       <div className="expense-item-meta">

@@ -14,6 +14,7 @@ export interface Expense {
   createdBy: string;
   createdAt: string;
   updatedAt: string;
+  importStatus?: 'pending' | 'complete';
 }
 
 // 支出入力型

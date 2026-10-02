@@ -2,9 +2,11 @@ package dynamo
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
 	"sync"
 	"time"
 
@@ -54,33 +56,61 @@ func NewClient(ctx context.Context) (*Client, error) {
 
 // expenseItem は DynamoDB expenses テーブルのアイテム
 type expenseItem struct {
-	ID         string `dynamodbav:"id"`
-	YearMonth  string `dynamodbav:"yearMonth"`
-	Date       string `dynamodbav:"date"`
-	Payer      string `dynamodbav:"payer"`
-	Category   string `dynamodbav:"category"`
-	Amount     int    `dynamodbav:"amount"`
-	Memo       string `dynamodbav:"memo"`
-	Place      string `dynamodbav:"place"`
-	Visibility string `dynamodbav:"visibility,omitempty"`
-	CreatedBy  string `dynamodbav:"createdBy"`
-	CreatedAt  string `dynamodbav:"createdAt"`
-	UpdatedAt  string `dynamodbav:"updatedAt"`
+	ID                   string `dynamodbav:"id"`
+	YearMonth            string `dynamodbav:"yearMonth"`
+	Date                 string `dynamodbav:"date"`
+	Payer                string `dynamodbav:"payer"`
+	Category             string `dynamodbav:"category"`
+	Amount               int    `dynamodbav:"amount"`
+	Memo                 string `dynamodbav:"memo"`
+	Place                string `dynamodbav:"place"`
+	Visibility           string `dynamodbav:"visibility,omitempty"`
+	CreatedBy            string `dynamodbav:"createdBy"`
+	CreatedAt            string `dynamodbav:"createdAt"`
+	UpdatedAt            string `dynamodbav:"updatedAt"`
+	ImportStatus         string `dynamodbav:"importStatus,omitempty"`
+	ImportCard           string `dynamodbav:"importCard,omitempty"`
+	ImportDate           string `dynamodbav:"importDate,omitempty"`
+	ImportUser           string `dynamodbav:"importUser,omitempty"`
+	ImportAmount         int    `dynamodbav:"importAmount,omitempty"`
+	ImportMessageID      string `dynamodbav:"importMessageId,omitempty"`
+	ImportIndex          int    `dynamodbav:"importIndex,omitempty"`
+	DetailMessageID      string `dynamodbav:"detailMessageId,omitempty"`
+	DetailIndex          int    `dynamodbav:"detailIndex,omitempty"`
+	PreliminaryMessageID string `dynamodbav:"preliminaryMessageId,omitempty"`
+	PreliminaryIndex     int    `dynamodbav:"preliminaryIndex,omitempty"`
+	ManualCategory       bool   `dynamodbav:"manualCategory,omitempty"`
+	ManualPayer          bool   `dynamodbav:"manualPayer,omitempty"`
+	ManualMemo           bool   `dynamodbav:"manualMemo,omitempty"`
 }
 
 func (item *expenseItem) toModel() model.Expense {
 	return model.Expense{
-		ID:         item.ID,
-		Date:       item.Date,
-		Payer:      item.Payer,
-		Category:   item.Category,
-		Amount:     item.Amount,
-		Memo:       item.Memo,
-		Place:      item.Place,
-		Visibility: item.Visibility,
-		CreatedBy:  item.CreatedBy,
-		CreatedAt:  item.CreatedAt,
-		UpdatedAt:  item.UpdatedAt,
+		ID:                   item.ID,
+		Date:                 item.Date,
+		Payer:                item.Payer,
+		Category:             item.Category,
+		Amount:               item.Amount,
+		Memo:                 item.Memo,
+		Place:                item.Place,
+		Visibility:           item.Visibility,
+		CreatedBy:            item.CreatedBy,
+		CreatedAt:            item.CreatedAt,
+		UpdatedAt:            item.UpdatedAt,
+		ImportStatus:         item.ImportStatus,
+		ImportCard:           item.ImportCard,
+		ImportDate:           item.ImportDate,
+		ImportUser:           item.ImportUser,
+		ImportAmount:         item.ImportAmount,
+		ImportMessageID:      item.ImportMessageID,
+		ImportIndex:          item.ImportIndex,
+		DetailMessageID:      item.DetailMessageID,
+		DetailIndex:          item.DetailIndex,
+		PreliminaryMessageID: item.PreliminaryMessageID,
+		PreliminaryIndex:     item.PreliminaryIndex,
+		ManualCategory:       item.ManualCategory,
+		ManualPayer:          item.ManualPayer,
+		ManualMemo:           item.ManualMemo,
 	}
 }
 
@@ -90,18 +120,32 @@ func expenseFromModel(e *model.Expense) expenseItem {
 		ym = e.Date[:7]
 	}
 	return expenseItem{
-		ID:         e.ID,
-		YearMonth:  ym,
-		Date:       e.Date,
-		Payer:      e.Payer,
-		Category:   e.Category,
-		Amount:     e.Amount,
-		Memo:       e.Memo,
-		Place:      e.Place,
-		Visibility: e.Visibility,
-		CreatedBy:  e.CreatedBy,
-		CreatedAt:  e.CreatedAt,
-		UpdatedAt:  e.UpdatedAt,
+		ID:                   e.ID,
+		YearMonth:            ym,
+		Date:                 e.Date,
+		Payer:                e.Payer,
+		Category:             e.Category,
+		Amount:               e.Amount,
+		Memo:                 e.Memo,
+		Place:                e.Place,
+		Visibility:           e.Visibility,
+		CreatedBy:            e.CreatedBy,
+		CreatedAt:            e.CreatedAt,
+		UpdatedAt:            e.UpdatedAt,
+		ImportStatus:         e.ImportStatus,
+		ImportCard:           e.ImportCard,
+		ImportDate:           e.ImportDate,
+		ImportUser:           e.ImportUser,
+		ImportAmount:         e.ImportAmount,
+		ImportMessageID:      e.ImportMessageID,
+		ImportIndex:          e.ImportIndex,
+		DetailMessageID:      e.DetailMessageID,
+		DetailIndex:          e.DetailIndex,
+		PreliminaryMessageID: e.PreliminaryMessageID,
+		PreliminaryIndex:     e.PreliminaryIndex,
+		ManualCategory:       e.ManualCategory,
+		ManualPayer:          e.ManualPayer,
+		ManualMemo:           e.ManualMemo,
 	}
 }
 
@@ -172,6 +216,7 @@ func (c *Client) GetExpense(ctx context.Context, id string) (*model.Expense, err
 		Key: map[string]types.AttributeValue{
 			"id": &types.AttributeValueMemberS{Value: id},
 		},
+		ConsistentRead: aws.Bool(true),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("expense の取得に失敗: %w", err)
@@ -189,19 +234,30 @@ func (c *Client) GetExpense(ctx context.Context, id string) (*model.Expense, err
 
 // QueryExpensesByMonth は指定月の支出一覧を取得する（GSI: yearMonth-date-index、新しい日付順）
 func (c *Client) QueryExpensesByMonth(ctx context.Context, yearMonth string) ([]model.Expense, error) {
-	out, err := c.db.Query(ctx, &dynamodb.QueryInput{
-		TableName:              &c.expenseTable,
-		IndexName:              aws.String("yearMonth-date-index"),
-		KeyConditionExpression: aws.String("yearMonth = :ym"),
-		ExpressionAttributeValues: map[string]types.AttributeValue{
-			":ym": &types.AttributeValueMemberS{Value: yearMonth},
-		},
-		ScanIndexForward: aws.Bool(false),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("expense の月別クエリに失敗: %w", err)
+	var all []model.Expense
+	var lastKey map[string]types.AttributeValue
+	for {
+		out, err := c.db.Query(ctx, &dynamodb.QueryInput{
+			TableName:                 &c.expenseTable,
+			IndexName:                 aws.String("yearMonth-date-index"),
+			KeyConditionExpression:    aws.String("yearMonth = :ym"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{":ym": &types.AttributeValueMemberS{Value: yearMonth}},
+			ScanIndexForward:          aws.Bool(false),
+			ExclusiveStartKey:         lastKey,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("expense の月別クエリに失敗: %w", err)
+		}
+		page, err := unmarshalExpenses(out.Items)
+		if err != nil {
+			return nil, err
+		}
+		all = append(all, page...)
+		if len(out.LastEvaluatedKey) == 0 {
+			return all, nil
+		}
+		lastKey = out.LastEvaluatedKey
 	}
-	return unmarshalExpenses(out.Items)
 }
 
 // ScanAllExpenses は全支出データを取得する
@@ -886,4 +942,230 @@ func (c *Client) BatchPutMasterItems(ctx context.Context, items []map[string]int
 		count += len(requests)
 	}
 	return count, nil
+}
+
+// PutImportedExpense は同じ取込識別子の支出があれば既存データを返す。
+func (c *Client) PutImportedExpense(ctx context.Context, e *model.Expense) (*model.Expense, bool, error) {
+	av, err := attributevalue.MarshalMap(expenseFromModel(e))
+	if err != nil {
+		return nil, false, err
+	}
+	_, err = c.db.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: &c.expenseTable, Item: av,
+		ConditionExpression: aws.String("attribute_not_exists(id)"),
+	})
+	if err == nil {
+		return e, true, nil
+	}
+	var condition *types.ConditionalCheckFailedException
+	if !errors.As(err, &condition) {
+		return nil, false, err
+	}
+	old, err := c.GetExpense(ctx, e.ID)
+	if err != nil {
+		return nil, false, err
+	}
+	if old == nil {
+		return nil, false, fmt.Errorf("同じ取込明細の取得に失敗しました")
+	}
+	return old, false, nil
+}
+
+// GetImportResult は詳細明細の照合済み支出IDを取得する。
+func (c *Client) GetImportResult(ctx context.Context, key string) (string, error) {
+	out, err := c.db.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName:      &c.masterTable,
+		Key:            map[string]types.AttributeValue{"type": &types.AttributeValueMemberS{Value: "expenseImport"}, "id": &types.AttributeValueMemberS{Value: key}},
+		ConsistentRead: aws.Bool(true),
+	})
+	if err != nil {
+		return "", err
+	}
+	if v, ok := out.Item["expenseId"].(*types.AttributeValueMemberS); ok {
+		return v.Value, nil
+	}
+	return "", nil
+}
+
+// FindPendingImportedExpenses は元の利用日などで速報明細を強い整合性で検索する。
+func (c *Client) FindPendingImportedExpenses(ctx context.Context, card, date, user string, amount int) ([]model.Expense, error) {
+	var result []model.Expense
+	var lastKey map[string]types.AttributeValue
+	for {
+		out, err := c.db.Scan(ctx, &dynamodb.ScanInput{
+			TableName:        &c.expenseTable,
+			ConsistentRead:   aws.Bool(true),
+			FilterExpression: aws.String("importStatus = :status AND importCard = :card AND importDate = :date AND importUser = :user AND importAmount = :amount"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":status": &types.AttributeValueMemberS{Value: "pending"},
+				":card":   &types.AttributeValueMemberS{Value: card},
+				":date":   &types.AttributeValueMemberS{Value: date},
+				":user":   &types.AttributeValueMemberS{Value: user},
+				":amount": &types.AttributeValueMemberN{Value: strconv.Itoa(amount)},
+			},
+			ExclusiveStartKey: lastKey,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("速報明細の検索に失敗: %w", err)
+		}
+		page, err := unmarshalExpenses(out.Items)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, page...)
+		if len(out.LastEvaluatedKey) == 0 {
+			return result, nil
+		}
+		lastKey = out.LastEvaluatedKey
+	}
+}
+
+// PutImportedExpenseIfUnchanged は取込支出の手動編集を同時照合と競合しない形で保存する。
+func (c *Client) PutImportedExpenseIfUnchanged(ctx context.Context, e *model.Expense, previousUpdatedAt string, previousStatus string) (bool, error) {
+	av, err := attributevalue.MarshalMap(expenseFromModel(e))
+	if err != nil {
+		return false, err
+	}
+	_, err = c.db.PutItem(ctx, &dynamodb.PutItemInput{
+		TableName: &c.expenseTable, Item: av,
+		ConditionExpression: aws.String("importStatus = :status AND updatedAt = :updated"),
+		ExpressionAttributeValues: map[string]types.AttributeValue{
+			":status":  &types.AttributeValueMemberS{Value: previousStatus},
+			":updated": &types.AttributeValueMemberS{Value: previousUpdatedAt},
+		},
+	})
+	if err == nil {
+		return true, nil
+	}
+	var condition *types.ConditionalCheckFailedException
+	if errors.As(err, &condition) {
+		return false, nil
+	}
+	return false, err
+}
+
+// GetImportGroupRevision は同じ利用日・利用者・金額の取込更新番号を取得する。
+func (c *Client) GetImportGroupRevision(ctx context.Context, key string) (int, error) {
+	out, err := c.db.GetItem(ctx, &dynamodb.GetItemInput{
+		TableName: &c.masterTable,
+		Key: map[string]types.AttributeValue{
+			"type": &types.AttributeValueMemberS{Value: "expenseImportGroup"},
+			"id":   &types.AttributeValueMemberS{Value: key},
+		},
+		ConsistentRead: aws.Bool(true),
+	})
+	if err != nil {
+		return 0, err
+	}
+	if v, ok := out.Item["revision"].(*types.AttributeValueMemberN); ok {
+		return strconv.Atoi(v.Value)
+	}
+	return 0, nil
+}
+
+func importGroupRevisionUpdate(tableName string, groupKey string, revision int) *types.Update {
+	condition := "revision = :old"
+	values := map[string]types.AttributeValue{
+		":next": &types.AttributeValueMemberN{Value: strconv.Itoa(revision + 1)},
+	}
+	if revision == 0 {
+		condition = "attribute_not_exists(revision)"
+	} else {
+		values[":old"] = &types.AttributeValueMemberN{Value: strconv.Itoa(revision)}
+	}
+
+	return &types.Update{
+		TableName: aws.String(tableName),
+		Key: map[string]types.AttributeValue{
+			"type": &types.AttributeValueMemberS{Value: "expenseImportGroup"},
+			"id":   &types.AttributeValueMemberS{Value: groupKey},
+		},
+		UpdateExpression:          aws.String("SET revision = :next"),
+		ConditionExpression:       aws.String(condition),
+		ExpressionAttributeValues: values,
+	}
+}
+
+// CommitGroupedImport は照合キー単位の更新と支出・取込記録を一括確定する。
+// mode は new、pending、detail のいずれかを指定する。
+func (c *Client) CommitGroupedImport(ctx context.Context, groupKey string, revision int, markerKey string, e *model.Expense, previousUpdatedAt string, mode string) (bool, error) {
+	av, err := attributevalue.MarshalMap(expenseFromModel(e))
+	if err != nil {
+		return false, err
+	}
+	group := types.TransactWriteItem{Update: importGroupRevisionUpdate(c.masterTable, groupKey, revision)}
+	items := []types.TransactWriteItem{group}
+	if markerKey != "" {
+		items = append(items, types.TransactWriteItem{Put: &types.Put{
+			TableName: &c.masterTable,
+			Item: map[string]types.AttributeValue{
+				"type":      &types.AttributeValueMemberS{Value: "expenseImport"},
+				"id":        &types.AttributeValueMemberS{Value: markerKey},
+				"expenseId": &types.AttributeValueMemberS{Value: e.ID},
+			},
+			ConditionExpression: aws.String("attribute_not_exists(id)"),
+		}})
+	}
+	put := &types.Put{TableName: &c.expenseTable, Item: av}
+	switch mode {
+	case "new":
+		put.ConditionExpression = aws.String("attribute_not_exists(id)")
+	case "pending":
+		put.ConditionExpression = aws.String("importStatus = :status AND updatedAt = :updated")
+		put.ExpressionAttributeValues = map[string]types.AttributeValue{
+			":status":  &types.AttributeValueMemberS{Value: "pending"},
+			":updated": &types.AttributeValueMemberS{Value: previousUpdatedAt},
+		}
+	case "detail":
+		put.ConditionExpression = aws.String("importStatus = :status AND attribute_not_exists(preliminaryMessageId) AND updatedAt = :updated")
+		put.ExpressionAttributeValues = map[string]types.AttributeValue{
+			":status":  &types.AttributeValueMemberS{Value: "complete"},
+			":updated": &types.AttributeValueMemberS{Value: previousUpdatedAt},
+		}
+	default:
+		return false, fmt.Errorf("取込更新の種類が不正です")
+	}
+	items = append(items, types.TransactWriteItem{Put: put})
+	_, err = c.db.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: items})
+	if err == nil {
+		return true, nil
+	}
+	var canceled *types.TransactionCanceledException
+	if errors.As(err, &canceled) {
+		return false, nil
+	}
+	return false, err
+}
+
+// FindUnpairedDetailedExpenses は速報明細と未照合の詳細版を強い整合性で探す。
+func (c *Client) FindUnpairedDetailedExpenses(ctx context.Context, card, date, user string, amount int) ([]model.Expense, error) {
+	var result []model.Expense
+	var lastKey map[string]types.AttributeValue
+	for {
+		out, err := c.db.Scan(ctx, &dynamodb.ScanInput{
+			TableName:        &c.expenseTable,
+			ConsistentRead:   aws.Bool(true),
+			FilterExpression: aws.String("importStatus = :status AND importCard = :card AND importDate = :date AND importUser = :user AND importAmount = :amount AND attribute_not_exists(preliminaryMessageId)"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":status": &types.AttributeValueMemberS{Value: "complete"},
+				":card":   &types.AttributeValueMemberS{Value: card},
+				":date":   &types.AttributeValueMemberS{Value: date},
+				":user":   &types.AttributeValueMemberS{Value: user},
+				":amount": &types.AttributeValueMemberN{Value: strconv.Itoa(amount)},
+			},
+			ExclusiveStartKey: lastKey,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("未照合の詳細明細の検索に失敗: %w", err)
+		}
+		page, err := unmarshalExpenses(out.Items)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, page...)
+		if len(out.LastEvaluatedKey) == 0 {
+			return result, nil
+		}
+		lastKey = out.LastEvaluatedKey
+	}
 }

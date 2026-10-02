@@ -149,11 +149,15 @@ func UpdateExpense(ctx context.Context, client *dynamo.Client, id string, input 
 	}
 
 	oldDate := existing.Date
+	previousUpdatedAt := existing.UpdatedAt
+	wasImported := existing.ImportStatus != ""
+	previousStatus := existing.ImportStatus
 
 	if !ValidateVisibility(input.Visibility) {
 		return nil, apperror.New("visibility は public, summary, private のいずれかを指定してください")
 	}
 
+	recordManualImportEdits(existing, input)
 	existing.Date = input.Date
 	existing.Payer = input.Payer
 	existing.Category = input.Category
@@ -161,9 +165,17 @@ func UpdateExpense(ctx context.Context, client *dynamo.Client, id string, input 
 	existing.Memo = input.Memo
 	existing.Place = input.Place
 	existing.Visibility = input.Visibility
-	existing.UpdatedAt = time.Now().UTC().Format(time.RFC3339)
+	existing.UpdatedAt = time.Now().UTC().Format(time.RFC3339Nano)
 
-	if err := client.PutExpense(ctx, existing); err != nil {
+	if wasImported {
+		ok, err := client.PutImportedExpenseIfUnchanged(ctx, existing, previousUpdatedAt, previousStatus)
+		if err != nil {
+			return nil, err
+		}
+		if !ok {
+			return nil, apperror.New("支出が同時に更新されました。再読み込みして編集してください")
+		}
+	} else if err := client.PutExpense(ctx, existing); err != nil {
 		return nil, err
 	}
 
@@ -172,6 +184,22 @@ func UpdateExpense(ctx context.Context, client *dynamo.Client, id string, input 
 		refreshSummaryCache(ctx, client, oldDate)
 	}
 	return existing, nil
+}
+
+// recordManualImportEdits は速報明細の手動変更を項目ごとに記録する。
+func recordManualImportEdits(existing *model.Expense, input *model.ExpenseInput) {
+	if existing.ImportStatus != "pending" {
+		return
+	}
+	if existing.Category != input.Category {
+		existing.ManualCategory = true
+	}
+	if existing.Payer != input.Payer {
+		existing.ManualPayer = true
+	}
+	if existing.Memo != input.Memo {
+		existing.ManualMemo = true
+	}
 }
 
 // DeleteExpense は支出を削除する

@@ -21,8 +21,24 @@ func (p *RakutenCardParser) Name() string {
 
 func (p *RakutenCardParser) CanParse(from, subject, body string) bool {
 	trimmedSubject := strings.TrimSpace(subject)
-	return (strings.Contains(from, "mail.rakuten-card.co.jp") || strings.Contains(from, "rakuten-card")) &&
-		(trimmedSubject == "カード利用のお知らせ(家族会員ご利用分)" || trimmedSubject == "カード利用のお知らせ(本人ご利用分)")
+	return isRakutenSender(from) && isRakutenSubject(trimmedSubject)
+}
+
+func isRakutenSender(from string) bool {
+	address := strings.TrimSpace(from)
+	if start := strings.LastIndex(address, "<"); start >= 0 {
+		end := strings.Index(address[start:], ">")
+		if end < 0 {
+			return false
+		}
+		address = address[start+1 : start+end]
+	}
+	return strings.EqualFold(strings.TrimSpace(address), "info@mail.rakuten-card.co.jp")
+}
+
+func isRakutenSubject(subject string) bool {
+	return subject == "カード利用のお知らせ(家族会員ご利用分)" || subject == "カード利用のお知らせ(本人ご利用分)" ||
+		subject == "【速報版】カード利用のお知らせ(家族会員ご利用分)" || subject == "【速報版】カード利用のお知らせ(本人ご利用分)"
 }
 
 func (p *RakutenCardParser) Parse(subject, body string) ([]model.ExpenseInput, error) {
@@ -78,6 +94,7 @@ func ParseRakutenCardEmail(body string, defaultPayer string, defaultCategory str
 			Place:      normalizePlace(item.Place),
 			Memo:       memo,
 			Visibility: "public",
+			ImportUser: item.User,
 		})
 	}
 

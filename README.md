@@ -24,9 +24,11 @@ CloudFront
   ├─ /api/* → Lambda Function URL (Go) → DynamoDB
   └─ /*     → S3 (静的ファイル)
 
-Gmail → GAS (Google Apps Script)
-  ↓ Webhook (HMAC Secret)
+Gmail → GAS: Gmail取込 (gas/gmail-import/)
+  ↓ Webhook (共有シークレット)
 Lambda Function URL (Go) → DynamoDB
+
+Gmail → GAS: LINE通知 (gas/line-notifier/) → LINE
 ```
 
 | レイヤー | 技術 |
@@ -34,7 +36,7 @@ Lambda Function URL (Go) → DynamoDB
 | フロントエンド | React 19, TypeScript, Vite, Chart.js |
 | バックエンド | Go, AWS Lambda (provided.al2023) |
 | データベース | DynamoDB (オンデマンド) |
-| 外部連携 | Google Apps Script (Gmail 取込) |
+| 外部連携 | Google Apps Script (Gmail取込、LINE通知) |
 | 認証 | Google OAuth 2.0 (ID Token 検証) |
 | インフラ | CloudFront + S3 + Lambda Function URL (OAC) |
 | IaC | AWS SAM |
@@ -60,11 +62,14 @@ Lambda Function URL (Go) → DynamoDB
 │       ├── components/     #   共通コンポーネント
 │       ├── contexts/       #   認証 Context
 │       └── services/       #   API クライアント
-├── gas/                    # Gmail 自動取込用 Google Apps Script
+├── gas/                    # Google Apps Script プロジェクト
+│   ├── gmail-import/       #   Gmail取込
+│   └── line-notifier/      #   LINE通知
 ├── docs/                   # 機能・設定詳細ドキュメント
 └── scripts/                # デプロイスクリプト
 ```
 
+GASの設定と反映手順は[GASプロジェクト一覧](gas/README.md)から参照できます。[Gmail取込](gas/gmail-import/README.md)と[LINE通知](gas/line-notifier/README.md)は別々のGASプロジェクトです。メールの取込仕様は[メール自動取込の説明](docs/gmail-import.md)、AWS側の作業は[デプロイ手順](docs/deploy.md)を参照してください。
 
 ## セットアップ
 
@@ -315,6 +320,7 @@ npm run dev
 | `scripts/sync-local-from-backup.sh` | 日次バックアップから DynamoDB Local へ同期 |
 | `scripts/deploy-backend.sh` | Lambda ビルド + SAM デプロイ |
 | `scripts/deploy-frontend.sh` | フロントエンドビルド + S3 同期 + CloudFront 無効化 |
+| `scripts/deploy-gas.sh` | Gmail取込GASのソースをClaspでプッシュ |
 
 ## セキュリティ
 
