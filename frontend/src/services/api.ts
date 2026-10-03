@@ -1,4 +1,5 @@
 import { config } from '../config';
+import { loadExpensePeriod } from '../utils/expenseReview';
 import type { Expense, ExpenseInput, Category, Place, Payer, PayerBalance, MonthlySummary, YearlySummary, ApiResponse, Role, RecurringExpense, RecurringExpenseInput, CategoryInput, PlaceInput, PayerInput, EmailMapping, EmailMappingInput } from '../types';
 
 // 認証トークン（グローバル）
@@ -192,6 +193,10 @@ export const payersApi = {
 
 // 支出API（月別キャッシュ、変更時に破棄）
 export const expensesApi = {
+  async getByPeriod(start: string, end: string): Promise<Expense[]> {
+    return loadExpensePeriod(start, end, month => expensesApi.getByMonth(month));
+  },
+
   async getByMonth(month: string): Promise<Expense[]> {
     const key = `expenses:${month}`;
     const cached = cacheGet<Expense[]>(key);

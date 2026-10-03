@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom';
+import { ExpenseEditModal } from '../components/ExpenseEditModal';
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { MonthPicker } from '../components/MonthPicker';
 import { expensesApi, categoriesApi, placesApi, payersApi } from '../services/api';
@@ -72,110 +74,6 @@ function groupByDate(expenses: Expense[]): Map<string, Expense[]> {
   return map;
 }
 
-interface EditModalProps {
-  expense: Expense;
-  categories: Category[];
-  places: Place[];
-  payers: Payer[];
-  onSave: (id: string, data: { date: string; payer: string; category: string; amount: number; memo: string; place: string; visibility?: Visibility }) => void;
-  onDelete: (id: string) => void;
-  onClose: () => void;
-}
-
-function EditModal({ expense, categories, places, payers, onSave, onDelete, onClose }: EditModalProps) {
-  const [date, setDate] = useState(expense.date);
-  const [payer, setPayer] = useState(expense.payer);
-  const [category, setCategory] = useState(expense.category);
-  const [amount, setAmount] = useState(String(expense.amount));
-  const isPredefinedPlace = places.some((p) => p.name === expense.place);
-  const [place, setPlace] = useState(!expense.place ? '' : isPredefinedPlace ? expense.place : '__other__');
-  const [customPlace, setCustomPlace] = useState(!expense.place || isPredefinedPlace ? '' : expense.place);
-  const [memo, setMemo] = useState(expense.memo);
-  const [visibility, setVisibility] = useState<Visibility>((expense.visibility || 'public') as Visibility);
-
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-header">
-          <h3>支出を編集</h3>
-          <button className="modal-close-btn" onClick={onClose}>&times;</button>
-        </div>
-        <div className="modal-field">
-          <label>日付</label>
-          <input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-        </div>
-        <div className="modal-field">
-          <label>支払元</label>
-          <select value={payer} onChange={(e) => setPayer(e.target.value)}>
-            <option value="">未選択</option>
-            {payers.map((p) => (
-              <option key={p.id} value={p.name}>{p.name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="modal-field">
-          <label>カテゴリ</label>
-          <select value={category} onChange={(e) => setCategory(e.target.value)}>
-            <option value="">未選択</option>
-            {categories.map((c) => (
-              <option key={c.id} value={c.id}>{c.name}</option>
-            ))}
-          </select>
-        </div>
-        <div className="modal-field">
-          <label>金額</label>
-          <input type="number" value={amount} onChange={(e) => setAmount(e.target.value)} />
-        </div>
-        <div className="modal-field">
-          <label>場所</label>
-          <select value={place} onChange={(e) => { setPlace(e.target.value); if (e.target.value !== '__other__') setCustomPlace(''); }}>
-            <option value="">未選択</option>
-            {places.map((p) => (
-              <option key={p.id} value={p.name}>{p.name}</option>
-            ))}
-            <option value="__other__">その他</option>
-          </select>
-          {place === '__other__' && (
-            <input
-              type="text"
-              placeholder="場所を入力"
-              value={customPlace}
-              onChange={(e) => setCustomPlace(e.target.value)}
-              style={{ marginTop: '6px' }}
-            />
-          )}
-        </div>
-        <div className="modal-field">
-          <label>メモ</label>
-          <input type="text" value={memo} onChange={(e) => setMemo(e.target.value)} />
-        </div>
-        <div className="modal-field">
-          <label>公開設定</label>
-          <select value={visibility} onChange={(e) => setVisibility(e.target.value as Visibility)}>
-            <option value="public">全員に公開</option>
-            <option value="summary">金額のみ公開</option>
-            <option value="private">自分のみ</option>
-          </select>
-        </div>
-        <div className="modal-actions">
-          <button
-            className="modal-btn modal-btn-danger"
-            onClick={() => { if (confirm('削除しますか？')) onDelete(expense.id); }}
-          >
-            削除
-          </button>
-          <button
-            className="modal-btn modal-btn-primary"
-            onClick={() => onSave(expense.id, { date, payer, category, amount: Number(amount), memo, place: place === '__other__' ? customPlace : place, visibility })}
-          >
-            保存
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function CalendarPage() {
   const { user } = useAuth();
   const [date, setDate] = useState(todayString());
@@ -232,9 +130,11 @@ export function CalendarPage() {
       setEditTarget(null);
       setToast('更新しました');
       await loadData();
+      return true;
     } catch (e) {
       console.error(e);
       setToast('更新に失敗しました');
+      return false;
     }
   };
 
@@ -303,6 +203,7 @@ export function CalendarPage() {
 
   return (
     <>
+      <div className="review-entry"><Link to="/search">支出検索・重複確認</Link></div>
       <MonthPicker value={date} onChange={setDate} mode="month" />
 
       {loading ? (
@@ -455,7 +356,7 @@ export function CalendarPage() {
       )}
 
       {editTarget && (
-        <EditModal
+        <ExpenseEditModal
           expense={editTarget}
           categories={categories}
           places={places}

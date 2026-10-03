@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { mappingsApi, categoriesApi, payersApi, placesApi } from '../services/api';
 import type { EmailMapping, EmailMappingInput, Category, Payer, Place } from '../types';
 
@@ -11,6 +12,8 @@ interface MappingModalProps {
   onDelete?: () => void;
   onClose: () => void;
   defaultType?: 'subject' | 'keyword';
+  draft?: EmailMappingInput;
+  saving: boolean;
 }
 
 function MappingModal({
@@ -22,16 +25,18 @@ function MappingModal({
   onDelete,
   onClose,
   defaultType,
+  draft,
+  saving,
 }: MappingModalProps) {
-  const [type, setType] = useState<'subject' | 'keyword'>((initial?.type ?? defaultType ?? 'subject') as 'subject' | 'keyword');
-  const [identifier, setIdentifier] = useState(initial?.identifier ?? '');
+  const [type, setType] = useState<'subject' | 'keyword'>((initial?.type ?? draft?.type ?? defaultType ?? 'subject') as 'subject' | 'keyword');
+  const [identifier, setIdentifier] = useState(initial?.identifier ?? draft?.identifier ?? '');
   const [payer, setPayer] = useState(initial?.payer ?? '');
-  const [category, setCategory] = useState(initial?.category ?? '');
+  const [category, setCategory] = useState(initial?.category ?? draft?.category ?? '');
   const [place, setPlace] = useState(initial?.place ?? '');
   const [comment, setComment] = useState(initial?.comment ?? '');
   const [exclude, setExclude] = useState(initial?.exclude ?? false);
 
-  // Comment input field
+  // 分類ルールの補足を入力する。
   const commentField = (
     <div className="modal-field">
       <label>メモ / コメント (任意)</label>
@@ -42,19 +47,22 @@ function MappingModal({
         placeholder="説明など"
       />
     </div>
-  );  return (
-    <div className="modal-overlay" onClick={onClose}>
+  );
+
+  return (
+    <div className="modal-overlay" onClick={() => { if (!saving) onClose(); }}>
       <div className="modal-content" onClick={(e) => e.stopPropagation()}>
         <div className="modal-header">
           <h3>{initial ? 'マッピングを編集' : 'マッピングを追加'}</h3>
-          <button className="modal-close-btn" onClick={onClose}>&times;</button>
+          <button className="modal-close-btn" onClick={() => { if (!saving) onClose(); }}>&times;</button>
         </div>
 
+        {draft && <p className="review-note">支出は保存済みです。このルールは今後のメール取込全体に適用されます。メール内の利用先・メモに含まれるキーワードを確認してください。登録済みの支出は変更しません。</p>}
         <div className="modal-field">
           <label>一致条件</label>
           <select value={type} onChange={(e) => setType(e.target.value as 'subject' | 'keyword')} disabled={!!initial}>
-            <option value="subject">件名 (完全一致/前方一致)</option>
-            <option value="keyword">本文キーワード (部分一致)</option>
+            <option value="subject">件名 (部分一致)</option>
+            <option value="keyword">利用先・メモのキーワード (部分一致)</option>
           </select>
         </div>
 
@@ -81,7 +89,7 @@ function MappingModal({
 
         <div className="modal-field">
           <label>適用するカテゴリ</label>
-          <select value={category} onChange={(e) => setCategory(e.target.value)} defaultValue="">
+          <select value={category} onChange={(e) => setCategory(e.target.value)}>
             <option value="">(未選択)</option>
             {categories.map((c) => (
               <option key={c.id} value={c.id}>{c.name}</option>
@@ -122,12 +130,12 @@ function MappingModal({
               comment: comment || undefined,
               exclude,
             })}
-            disabled={!identifier.trim()}
+            disabled={saving || !identifier.trim() || (!!draft && !category)}
           >
-            保存
+            {saving ? '保存中…' : '保存'}
           </button>
           {initial && onDelete && (
-            <button className="modal-btn modal-btn-danger" onClick={onDelete}>
+            <button className="modal-btn modal-btn-danger" disabled={saving} onClick={onDelete}>
               削除
             </button>
           )}
@@ -138,14 +146,25 @@ function MappingModal({
 }
 
 export function AdminMappingsPage() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const [draft, setDraft] = useState<EmailMappingInput | undefined>(() => {
+    const value = location.state?.mappingDraft;
+    if (value?.type === 'keyword' && typeof value.identifier === 'string' && typeof value.category === 'string') {
+      return { type: 'keyword', identifier: value.identifier, category: value.category };
+    }
+    return undefined;
+  });
+  const [saving, setSaving] = useState(false);
+
   const [mappings, setMappings] = useState<EmailMapping[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [payers, setPayers] = useState<Payer[]>([]);
   const [places, setPlaces] = useState<Place[]>([]);
   const [loading, setLoading] = useState(true);
-  const [editTarget, setEditTarget] = useState<EmailMapping | null | 'new'>(null);
+  const [editTarget, setEditTarget] = useState<EmailMapping | null | 'new'>(draft ? 'new' : null);
   const [toast, setToast] = useState<string | null>(null);
-  const [newMappingType, setNewMappingType] = useState<'subject' | 'keyword'>('subject');
+  const [newMappingType, setNewMappingType] = useState<'subject' | 'keyword'>(draft ? 'keyword' : 'subject');
 
   const loadData = async () => {
     try {
@@ -172,6 +191,10 @@ export function AdminMappingsPage() {
   }, []);
 
   useEffect(() => {
+    if (location.state?.mappingDraft) navigate(location.pathname, { replace: true, state: null });
+  }, [location.pathname, location.state, navigate]);
+
+  useEffect(() => {
     if (toast) {
       const timer = setTimeout(() => setToast(null), 2500);
       return () => clearTimeout(timer);
@@ -179,22 +202,32 @@ export function AdminMappingsPage() {
   }, [toast]);
 
   const catMap = new Map(categories.map((c) => [c.id, c.name]));
-  // const payerMap = new Map(payers.map((p) => [p.id, p.name])); // removed, using name directly
 
   const handleSave = async (input: EmailMappingInput) => {
+    if (saving) return;
+    setSaving(true);
     try {
       if (editTarget === 'new') {
-        await mappingsApi.create(input);
+        const existing = await mappingsApi.getAll();
+        if (existing.some(mapping => mapping.type === input.type && mapping.identifier === input.identifier.trim())) {
+          setToast('同じ条件のルールがあります。一覧から既存ルールを確認してください');
+          setMappings(existing);
+          return;
+        }
+        await mappingsApi.create({ ...input, identifier: input.identifier.trim() });
         setToast('マッピングを追加しました');
       } else if (editTarget) {
         await mappingsApi.update(editTarget.type, editTarget.identifier, input);
         setToast('マッピングを更新しました');
       }
       setEditTarget(null);
+      setDraft(undefined);
       await loadData();
     } catch (e) {
       console.error(e);
       setToast('マッピングの保存に失敗しました');
+    } finally {
+      setSaving(false);
     }
   };
 
@@ -204,6 +237,7 @@ export function AdminMappingsPage() {
       await mappingsApi.delete(m.type, m.identifier);
       setToast('削除しました');
       setEditTarget(null);
+      setDraft(undefined);
       await loadData();
     } catch (e) {
       console.error(e);
@@ -220,7 +254,7 @@ export function AdminMappingsPage() {
   <>
     <div className="recurring-header">
       <h2>メール自動分類マッピング</h2>
-      <button className="recurring-add-btn" onClick={() => { setNewMappingType('subject'); setEditTarget('new'); }}>
+      <button className="recurring-add-btn" onClick={() => { setDraft(undefined); setNewMappingType('subject'); setEditTarget('new'); }}>
         + 追加
       </button>
 
@@ -273,15 +307,17 @@ export function AdminMappingsPage() {
 
       {editTarget && (
         <MappingModal
-          key={editTarget === 'new' ? `new-${Date.now()}` : `${editTarget?.type}#${editTarget?.identifier}`}
+          key={editTarget === 'new' ? 'new' : `${editTarget?.type}#${editTarget?.identifier}`}
           initial={editTarget === 'new' ? undefined : editTarget}
-          categories={categories}
+          categories={draft && editTarget === 'new' ? categories.filter(category => !category.ownerEmail) : categories}
           payers={payers}
           places={places}
           defaultType={newMappingType}
+          draft={editTarget === 'new' && draft ? draft : undefined}
+          saving={saving}
           onSave={handleSave}
           onDelete={editTarget !== 'new' ? () => handleDelete(editTarget) : undefined}
-          onClose={() => setEditTarget(null)}
+          onClose={() => { setEditTarget(null); setDraft(undefined); }}
         />
       )}
 

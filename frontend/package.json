@@ -8,6 +8,7 @@
     "dev:local": "vite --mode offline",
     "build": "tsc -b && vite build",
     "lint": "eslint .",
+    "test": "node tests/expense-review.test.cjs",
     "preview": "vite preview"
   },
   "dependencies": {
