@@ -41,7 +41,7 @@ parameter_overrides = [
 3. GASエディタの「プロジェクトの設定」→「スクリプト プロパティ」で次の値を登録します：
    - `BACKEND_URL`: デプロイ時に取得した `WebhookUrl`
    - `WEBHOOK_SECRET`: 設定した `WebhookSecret`
-4. トリガー（時計アイコン）を開き、`processRakutenCardEmails` を時間主導で登録します。`createTimeDrivenTrigger` を実行する場合は1時間おきに登録されます。
+4. トリガー（時計アイコン）を開き、`processPaymentEmails` を時間主導で登録します。`createTimeDrivenTrigger` を実行する場合は1時間おきに登録されます。
 
 Claspを使う手順は[Gmail取込GASのREADME](../gas/gmail-import/README.md)を参照してください。
 
