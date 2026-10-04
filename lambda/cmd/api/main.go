@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
@@ -25,9 +26,15 @@ func route(ctx context.Context, event json.RawMessage) (any, error) {
 	var scheduled struct {
 		Action string `json:"action"`
 	}
-	if err := json.Unmarshal(event, &scheduled); err == nil && scheduled.Action == "backup" {
-		return handler.HandleBackup(ctx)
+	if err := json.Unmarshal(event, &scheduled); err != nil {
+		return nil, fmt.Errorf("イベントの解析に失敗しました: %w", err)
 	}
-	// デフォルト: 定期支出の自動登録（後方互換）
-	return handler.HandleScheduled(ctx)
+	switch scheduled.Action {
+	case "backup":
+		return handler.HandleBackup(ctx)
+	case "recurring":
+		return handler.HandleScheduled(ctx)
+	default:
+		return nil, fmt.Errorf("不明なイベントのアクション: %q", scheduled.Action)
+	}
 }

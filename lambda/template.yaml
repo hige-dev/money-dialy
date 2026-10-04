@@ -32,6 +32,7 @@ Parameters:
     Default: '*'
   WebhookSecret:
     Type: String
+    NoEcho: true
     Description: Secret key for Gmail Webhook authentication
     Default: ''
 
@@ -101,6 +102,7 @@ Resources:
           Properties:
             Schedule: cron(0 0 1 * ? *)
             Description: 毎月1日 0:00 UTC に定期支出を自動登録
+            Input: '{"action":"recurring"}'
         DailyBackup:
           Type: Schedule
           Properties:
