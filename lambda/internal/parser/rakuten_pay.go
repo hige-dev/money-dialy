@@ -24,7 +24,7 @@ func (p *RakutenPayParser) Name() string {
 
 func (p *RakutenPayParser) CanParse(from, subject, body string) bool {
 	trimmedSubject := strings.TrimSpace(subject)
-	// Decode possible MIME encoded-word subject (e.g., "=?utf-8?B?...?=")
+	// MIMEエンコードされた件名をデコードする。
 	if decoded, err := new(mime.WordDecoder).DecodeHeader(trimmedSubject); err == nil {
 		trimmedSubject = decoded
 	}
@@ -50,9 +50,9 @@ func normalizeFullHalf(s string) string {
 		}
 		sb.WriteRune(r)
 	}
-	// Use Unicode NFKC to convert half-width Katakana to full-width Katakana
+	// Unicode NFKCで半角カタカナを全角に変換する。
 	converted := norm.NFKC.String(sb.String())
-	// Preserve full-width spaces: replace regular spaces with IDEOGRAPHIC SPACE (U+3000)
+	// 空白は全角スペース（U+3000）に統一する。
 	return strings.ReplaceAll(converted, " ", "\u3000")
 }
 
@@ -86,27 +86,13 @@ func ParseRakutenPayEmail(body string, defaultPayer string, defaultCategory stri
 		category = "未分類"
 	}
 
-	// Known places (dummy list). In production could be loaded from DB/config.
-	knownPlaces := []string{"ダミー-コンビニ　テスト駅前", "テストストア　テスト駅前"}
-	isOther := true
-	for _, kp := range knownPlaces {
-		if kp == placeStr {
-			isOther = false
-			break
-		}
-	}
-	if isOther {
-		placeStr = "その他"
-	}
-
 	return []model.ExpenseInput{{
-		Date:         dateStr,
-		Payer:        payer,
-		Category:     category,
-		Amount:       amount,
-		Place:        placeStr,
-		Memo:         "楽天ペイ",
-		Visibility:   "public",
-		IsOtherPlace: isOther,
+		Date:       dateStr,
+		Payer:      payer,
+		Category:   category,
+		Amount:     amount,
+		Place:      placeStr,
+		Memo:       "楽天ペイ",
+		Visibility: "public",
 	}}
 }

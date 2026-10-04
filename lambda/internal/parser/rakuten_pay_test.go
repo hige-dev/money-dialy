@@ -123,3 +123,21 @@ func TestRakutenPayParser_CanParse(t *testing.T) {
 		t.Errorf("expected CanParse to return false for wrong subject")
 	}
 }
+
+func TestRakutenPayParser_PreservesStoreName(t *testing.T) {
+	body := "ご利用店舗\r\n魚米　minanoba相模原店\r\nご利用日時\r\n2026/10/04(日) 18:55\r\n決済総額\r\n¥4,180\r\n"
+	expenses, name, err := ParseEmail("楽天ペイ <no-reply@pay.rakuten.co.jp>", "楽天ペイお支払い完了のお知らせ【楽天ペイアプリ】", body)
+	if err != nil || name != "楽天ペイ" || len(expenses) != 1 {
+		t.Fatalf("楽天ペイの解析に失敗しました: パーサー=%s, 件数=%d, エラー=%v", name, len(expenses), err)
+	}
+	exp := expenses[0]
+	if exp.Place != "魚米　minanoba相模原店" {
+		t.Errorf("店舗名が保持されていません: %q", exp.Place)
+	}
+	if exp.Date != "2026-10-04" || exp.Amount != 4180 {
+		t.Errorf("日付・金額が想定と異なります: 日付=%s, 金額=%d", exp.Date, exp.Amount)
+	}
+	if exp.Payer != "楽天ペイ" || exp.Category != "未分類" {
+		t.Errorf("支払元・カテゴリが想定と異なります: 支払元=%s, カテゴリ=%s", exp.Payer, exp.Category)
+	}
+}
