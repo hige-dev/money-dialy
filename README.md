@@ -200,7 +200,33 @@ aws s3 mb s3://your-frontend-bucket
 
 ### AWS ログインなしで検証する
 
-Go 1.25.5+、Docker Compose、Node.js 20+ を使用します。AWS CLI、SAM CLI、Google OAuth の設定は不要です。
+Linux と Docker Compose を使用します。リポジトリ直下で次を実行すると、DynamoDB Local・backend・frontendをまとめて起動します。Go・Node.jsはコンテナ内で実行します。AWS CLI、SAM CLI、Google OAuth の設定は不要です。
+
+```bash
+docker compose up
+```
+
+画面は `http://127.0.0.1:5173`、APIは `http://127.0.0.1:8080/api` です。DBの起動後にAPI、APIの準備完了後にfrontendを起動します。初回はイメージと依存パッケージの取得・Goのコンパイルに時間がかかります。依存パッケージとビルド結果は名前付きボリュームにキャッシュします。
+
+frontendのソース変更はViteが反映します。backendのソース変更を反映する場合は `docker compose restart backend` を実行します。frontendの依存パッケージ変更後は `docker compose restart frontend` を実行します。
+
+APIとfrontendはLinuxのホストネットワークを使用します。各サービスは `127.0.0.1` に接続・待ち受けします。Docker Desktopを使用する場合、この構成にはホストネットワーク機能が必要です。
+
+バックグラウンド起動・ログ確認・停止は次のコマンドで行います。停止してもDBのデータは保持します。
+
+```bash
+docker compose up -d --wait
+docker compose logs -f backend frontend
+docker compose down
+```
+
+ポートを変更する場合は、起動・停止などの操作で同じ値を指定してください。
+
+```bash
+FRONTEND_PORT=5175 BACKEND_PORT=8085 DYNAMODB_PORT=8005 docker compose up
+```
+
+Go 1.25.5+、Node.js 20+をホストにインストールして起動することもできます。
 
 ```bash
 # ターミナル 1: DynamoDB Local と API を起動
@@ -245,12 +271,7 @@ LOCAL_DYNAMO_TEST_ENDPOINT=http://127.0.0.1:8000 go test ./...
 ローカルでは CloudFront/IAM、Google ID Token の署名検証、EventBridge の起動、
 Gmail/GAS と Google Sheets バックアップの実接続は検証できません。
 
-停止する場合は開発サーバーと API を終了し、`lambda` で次を実行します。
-データは保持されます。
-
-```bash
-docker compose -f compose.local.yaml down
-```
+ホストで起動した場合は開発サーバーとAPIを終了し、リポジトリ直下で `docker compose down` を実行します。データは保持されます。
 
 ポートを変更する場合は `go run ./cmd/local -port 8081 -dynamo-endpoint http://127.0.0.1:8001`
 で API を起動します。フロントエンドは `LOCAL_API_URL=http://127.0.0.1:8081 npm run dev:local`
