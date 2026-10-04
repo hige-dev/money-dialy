@@ -14,7 +14,7 @@ local:
 	go run ./cmd/local
 
 dynamo-local:
-	docker compose -f compose.local.yaml up -d
+	docker compose --project-directory .. -f ../compose.yaml up -d dynamodb-local
 
 clean:
 	rm -f bootstrap
