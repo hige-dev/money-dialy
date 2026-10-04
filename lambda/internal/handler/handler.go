@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"crypto/subtle"
 	"encoding/json"
 	"log"
 	"os"
@@ -61,18 +62,23 @@ func errorResponse(statusCode int, errMsg string, requestOrigin string) events.A
 }
 
 func getHeader(headers map[string]string, key string) string {
+	value, _ := findHeader(headers, key)
+	return value
+}
+
+func findHeader(headers map[string]string, key string) (string, bool) {
 	lowerKey := strings.ToLower(key)
 	for k, v := range headers {
 		if strings.ToLower(k) == lowerKey {
-			return v
+			return v, true
 		}
 	}
-	return ""
+	return "", false
 }
 
 // Handle は Lambda ハンドラー
 func Handle(ctx context.Context, event events.APIGatewayV2HTTPRequest) (events.APIGatewayV2HTTPResponse, error) {
-	return handle(ctx, event, dynamo.NewClient, auth.VerifyIDToken)
+	return handle(ctx, event, dynamo.GetClient, auth.VerifyIDToken)
 }
 
 // NewHandler は指定した保存先とトークン検証関数を使うハンドラーを生成する。
@@ -83,10 +89,10 @@ func NewHandler(client *dynamo.Client, verify func(context.Context, string) (*mo
 	}
 }
 
-func handle(ctx context.Context, event events.APIGatewayV2HTTPRequest, newClient func(context.Context) (*dynamo.Client, error), verify func(context.Context, string) (*model.AuthUser, error)) (events.APIGatewayV2HTTPResponse, error) {
+func handle(ctx context.Context, event events.APIGatewayV2HTTPRequest, getClient func(context.Context) (*dynamo.Client, error), verify func(context.Context, string) (*model.AuthUser, error)) (events.APIGatewayV2HTTPResponse, error) {
 	origin := getHeader(event.Headers, "origin")
 
-	// CORS preflight
+	// CORS の事前リクエスト
 	if event.RequestContext.HTTP.Method == "OPTIONS" {
 		return events.APIGatewayV2HTTPResponse{
 			StatusCode: 204,
@@ -95,7 +101,7 @@ func handle(ctx context.Context, event events.APIGatewayV2HTTPRequest, newClient
 	}
 
 	if event.RequestContext.HTTP.Method != "POST" {
-		return errorResponse(405, "Method not allowed", origin), nil
+		return errorResponse(405, "許可されていない HTTP メソッドです", origin), nil
 	}
 
 	// リクエストボディをパース
@@ -105,22 +111,26 @@ func handle(ctx context.Context, event events.APIGatewayV2HTTPRequest, newClient
 	}
 
 	// DynamoDB クライアント初期化
-	client, err := newClient(ctx)
+	client, err := getClient(ctx)
 	if err != nil {
-		log.Printf("DynamoDB client error: %v", err)
+		log.Printf("DynamoDB クライアントの初期化に失敗: %v", err)
 		return errorResponse(500, "サーバーエラーが発生しました", origin), nil
 	}
 
 	// Webhook 認証の判定
-	webhookSecretHeader := getHeader(event.Headers, "x-webhook-secret")
+	webhookSecretHeader, webhookHeaderPresent := findHeader(event.Headers, "x-webhook-secret")
 	expectedSecret := os.Getenv("WEBHOOK_SECRET")
-	if expectedSecret != "" && webhookSecretHeader == expectedSecret {
+	if webhookHeaderPresent {
+		if expectedSecret == "" || subtle.ConstantTimeCompare([]byte(webhookSecretHeader), []byte(expectedSecret)) != 1 {
+			log.Printf("Webhook 認証に失敗しました")
+			return errorResponse(401, "認証に失敗しました", origin), nil
+		}
 		// Webhook 経由の処理
 		if req.Action == "webhookGmail" || req.Gmail != nil {
 			if req.Gmail == nil {
 				return errorResponse(400, "gmail ペイロードは必須です", origin), nil
 			}
-			log.Printf("[Webhook] Processing Gmail webhook, messageId: %s, subject: %s", req.Gmail.MessageID, req.Gmail.Subject)
+			log.Printf("[Webhook] Gmail の処理を開始: messageId=%s, 件名=%s", req.Gmail.MessageID, req.Gmail.Subject)
 			// システムユーザーとして登録
 			defaultUser := os.Getenv("WEBHOOK_USER_EMAIL")
 			if defaultUser == "" {
@@ -131,10 +141,10 @@ func handle(ctx context.Context, event events.APIGatewayV2HTTPRequest, newClient
 				if appErr, ok := err.(*apperror.AppError); ok {
 					return errorResponse(appErr.StatusCode, appErr.Message, origin), nil
 				}
-				log.Printf("Webhook error: %v", err)
+				log.Printf("Webhook の処理に失敗: %v", err)
 				return errorResponse(500, "サーバーエラーが発生しました", origin), nil
 			}
-			log.Printf("[Webhook] Successfully processed messageId: %s, result: %+v", req.Gmail.MessageID, result)
+			log.Printf("[Webhook] Gmail の処理が完了: messageId=%s, 結果=%+v", req.Gmail.MessageID, result)
 			return successResponse(result, origin), nil
 		}
 	}
@@ -142,19 +152,19 @@ func handle(ctx context.Context, event events.APIGatewayV2HTTPRequest, newClient
 	// トークン認証 (通常のフロントエンド用)
 	token := getHeader(event.Headers, "x-auth-token")
 	if token == "" {
-		return errorResponse(401, "Token required", origin), nil
+		return errorResponse(401, "認証トークンは必須です", origin), nil
 	}
 
 	user, err := verify(ctx, token)
 	if err != nil {
-		log.Printf("Token verification failed: %v", err)
-		return errorResponse(401, "Unauthorized", origin), nil
+		log.Printf("トークンの検証に失敗: %v", err)
+		return errorResponse(401, "認証に失敗しました", origin), nil
 	}
 
 	// ユーザー登録確認（メールベース認証）
 	registered, err := service.IsUserRegistered(ctx, client, user.Email)
 	if err != nil {
-		log.Printf("User check error: %v", err)
+		log.Printf("ユーザーの登録確認に失敗: %v", err)
 		return errorResponse(500, "サーバーエラーが発生しました", origin), nil
 	}
 	if !registered {
@@ -167,14 +177,37 @@ func handle(ctx context.Context, event events.APIGatewayV2HTTPRequest, newClient
 		if appErr, ok := err.(*apperror.AppError); ok {
 			return errorResponse(appErr.StatusCode, appErr.Message, origin), nil
 		}
-		log.Printf("Internal error: %v", err)
+		log.Printf("アクションの実行に失敗: %v", err)
 		return errorResponse(500, "サーバーエラーが発生しました", origin), nil
 	}
 
 	return successResponse(result, origin), nil
 }
 
+// requiresAdmin は管理者に限定するアクションを判定する。
+func requiresAdmin(action string) bool {
+	switch action {
+	case "createCategory", "updateCategory", "deleteCategory",
+		"createPlace", "updatePlace", "deletePlace",
+		"createPayer", "updatePayer", "deletePayer",
+		"getAllMappings", "createMapping", "updateMapping", "deleteMapping",
+		"getRecurringExpenses", "createRecurringExpense", "updateRecurringExpense", "deleteRecurringExpense", "processRecurring":
+		return true
+	default:
+		return false
+	}
+}
+
 func handleAction(ctx context.Context, client *dynamo.Client, req *model.ActionRequest, userEmail string) (any, error) {
+	if requiresAdmin(req.Action) {
+		role, err := service.GetUserRole(ctx, client, userEmail)
+		if err != nil {
+			return nil, err
+		}
+		if role != "admin" {
+			return nil, apperror.WithStatus(403, "この操作には管理者権限が必要です")
+		}
+	}
 	switch req.Action {
 	case "getCategories":
 		return service.GetCategories(ctx, client, userEmail)
@@ -273,7 +306,7 @@ func handleAction(ctx context.Context, client *dynamo.Client, req *model.ActionR
 	case "getAllMappings":
 		return service.GetAllMappings(ctx, client)
 	case "createMapping":
-		// Expect Mapping fields in request
+		// リクエストからメール設定を作成する
 		m := &model.EmailMapping{
 			Type:       req.MappingType,
 			Identifier: req.MappingIdentifier,
@@ -285,7 +318,7 @@ func handleAction(ctx context.Context, client *dynamo.Client, req *model.ActionR
 		}
 		return service.CreateMapping(ctx, client, m)
 	case "updateMapping":
-		// Require type and identifier in request to identify the mapping
+		// 更新対象を特定する type と identifier を確認する
 		if req.MappingType == "" || req.MappingIdentifier == "" {
 			return nil, apperror.New("type と identifier は必須です")
 		}
@@ -392,29 +425,29 @@ func handleAction(ctx context.Context, client *dynamo.Client, req *model.ActionR
 
 // HandleScheduled は EventBridge Schedule から呼ばれ、定期支出の自動登録を行う
 func HandleScheduled(ctx context.Context) (any, error) {
-	client, err := dynamo.NewClient(ctx)
+	client, err := dynamo.GetClient(ctx)
 	if err != nil {
-		log.Printf("DynamoDB client error: %v", err)
+		log.Printf("DynamoDB クライアントの初期化に失敗: %v", err)
 		return nil, err
 	}
 	count, err := service.ProcessRecurringExpenses(ctx, client, "system@scheduled")
 	if err != nil {
-		log.Printf("ProcessRecurringExpenses error: %v", err)
+		log.Printf("定期支出の登録に失敗: %v", err)
 		return nil, err
 	}
-	log.Printf("ProcessRecurringExpenses: %d件作成", count)
+	log.Printf("定期支出を%d件作成しました", count)
 	return map[string]int{"created": count}, nil
 }
 
 // HandleBackup は EventBridge Schedule から呼ばれ、DynamoDB → Sheets バックアップを行う
 func HandleBackup(ctx context.Context) (any, error) {
-	client, err := dynamo.NewClient(ctx)
+	client, err := dynamo.GetClient(ctx)
 	if err != nil {
-		log.Printf("DynamoDB client error: %v", err)
+		log.Printf("DynamoDB クライアントの初期化に失敗: %v", err)
 		return nil, err
 	}
 	if err := backup.SyncExpenses(ctx, client); err != nil {
-		log.Printf("SyncExpenses error: %v", err)
+		log.Printf("支出のバックアップに失敗: %v", err)
 		return nil, err
 	}
 	return map[string]string{"status": "ok"}, nil

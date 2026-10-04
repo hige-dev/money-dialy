@@ -32,8 +32,9 @@ var (
 	initErr  error
 )
 
-// NewClient は DynamoDB クライアントを生成する（sync.Once でシングルトン）
-func NewClient(ctx context.Context) (*Client, error) {
+// GetClient は実行環境内で共有する DynamoDB クライアントを取得する。
+// 初期化は sync.Once で一度だけ行う。
+func GetClient(ctx context.Context) (*Client, error) {
 	once.Do(func() {
 		cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion("ap-northeast-1"))
 		if err != nil {
