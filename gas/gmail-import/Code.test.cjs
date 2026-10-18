@@ -35,12 +35,18 @@ const messages = [
   message('三井住友送信元', 'ご利用のお知らせ【三井住友カード】', 'Vpass <notice@vpass.ne.jp>'),
   message('三井住友本文', 'ご利用のお知らせ【三井住友カード】', 'notice@example.com', '三井住友カードをご利用いただきありがとうございます。'),
   message('楽天ペイ', '楽天ペイお支払い完了のお知らせ【楽天ペイアプリ】', '楽天ペイ <no-reply@pay.rakuten.co.jp>'),
+  message('au PAY', '【au PAY】ご利用のお知らせ [メールコードP1001]', 'info@wallet.auone.jp'),
+  message('au PAY表示名付き', '【au PAY】ご利用のお知らせ [メールコードP1001]', 'au PAY <info@wallet.auone.jp>'),
   message('偽装', '【速報版】カード利用のお知らせ(本人ご利用分)', '偽装 <info@mail.rakuten-card.co.jp.evil.example>'),
   message('別件', '別の件名', '楽天カード株式会社 <info@mail.rakuten-card.co.jp>'),
   message('三井住友送信元不一致', 'ご利用のお知らせ【三井住友カード】', 'notice@example.com', '別のサービスのメールです。'),
   message('三井住友件名不一致', 'ご利用のお知らせ', 'notice@vpass.ne.jp', '三井住友カードをご利用いただきありがとうございます。'),
   message('楽天ペイ送信元不一致', '楽天ペイお支払い完了のお知らせ【楽天ペイアプリ】', 'notice@example.com'),
   message('楽天ペイ件名不一致', 'お支払い完了のお知らせ', '楽天ペイ <no-reply@pay.rakuten.co.jp>'),
+  message('au PAY送信元不一致', '【au PAY】ご利用のお知らせ [メールコードP1001]', 'notice@example.com'),
+  message('au PAY送信元偽装', '【au PAY】ご利用のお知らせ [メールコードP1001]', 'au PAY <info@wallet.auone.jp.evil.example>'),
+  message('au PAY件名不一致', '【au PAY】チャージのお知らせ', 'info@wallet.auone.jp'),
+  message('au PAYメールコード不一致', '【au PAY】ご利用のお知らせ [メールコードP1002]', 'info@wallet.auone.jp'),
 ];
 const invalidSmbcThreads = Array.from({ length: 20 }, (_, index) => ({
   getMessages: () => [message(
@@ -98,8 +104,8 @@ assert.equal(context.isRakutenCardSender('楽天カード株式会社 <info@mail
 assert.equal(context.isRakutenCardSender('info@mail.rakuten-card.co.jp'), true);
 assert.equal(context.isRakutenCardSender('偽装 <info@mail.rakuten-card.co.jp.evil.example>'), false);
 context.processPaymentEmails();
-assert.deepEqual(sent, ['速報', '詳細', '三井住友送信元', '三井住友本文', '楽天ペイ']);
-assert.deepEqual(read, ['速報', '詳細', '三井住友送信元', '三井住友本文', '楽天ペイ']);
+assert.deepEqual(sent, ['速報', '詳細', '三井住友送信元', '三井住友本文', '楽天ペイ', 'au PAY', 'au PAY表示名付き']);
+assert.deepEqual(read, ['速報', '詳細', '三井住友送信元', '三井住友本文', '楽天ペイ', 'au PAY', 'au PAY表示名付き']);
 assert.deepEqual(
   searchCalls.map(({ start, max }) => [start, max]),
   [[0, 20], [20, 20]],
@@ -107,7 +113,7 @@ assert.deepEqual(
 assert.equal(searchCalls.every(call => call.query === searchQuery), true);
 assert.equal(
   searchQuery,
-  'is:unread ((from:info@mail.rakuten-card.co.jp (subject:"カード利用のお知らせ(家族会員ご利用分)" OR subject:"カード利用のお知らせ(本人ご利用分)" OR subject:"【速報版】カード利用のお知らせ(家族会員ご利用分)" OR subject:"【速報版】カード利用のお知らせ(本人ご利用分)")) OR (subject:"ご利用のお知らせ【三井住友カード】" {from:vpass.ne.jp from:smbc-card.com from:smbc.co.jp "三井住友カード"}) OR (from:pay.rakuten.co.jp (subject:"楽天ペイお支払い完了のお知らせ" OR subject:"楽天ペイアプリ")))',
+  'is:unread ((from:info@mail.rakuten-card.co.jp (subject:"カード利用のお知らせ(家族会員ご利用分)" OR subject:"カード利用のお知らせ(本人ご利用分)" OR subject:"【速報版】カード利用のお知らせ(家族会員ご利用分)" OR subject:"【速報版】カード利用のお知らせ(本人ご利用分)")) OR (subject:"ご利用のお知らせ【三井住友カード】" {from:vpass.ne.jp from:smbc-card.com from:smbc.co.jp "三井住友カード"}) OR (from:pay.rakuten.co.jp (subject:"楽天ペイお支払い完了のお知らせ" OR subject:"楽天ペイアプリ")) OR (from:info@wallet.auone.jp subject:"【au PAY】ご利用のお知らせ [メールコードP1001]"))',
 );
 assert.equal(searchQuery.includes('ProcessedForLINE'), false);
 assert.equal(searchQuery.includes('joe.yshr380'), false);
@@ -121,4 +127,4 @@ assert.equal(triggers.find(trigger => trigger.handlerFunction === 'processPaymen
 context.deleteTriggers();
 assert.equal(triggers.some(trigger => trigger.handlerFunction === 'processPaymentEmails'), false);
 assert.equal(triggers.some(trigger => trigger.handlerFunction === 'forwardEmailToLine'), true);
-console.log('3系統の件名と送信元・本文判定、トリガー管理: 成功');
+console.log('4系統の件名と送信元・本文判定、トリガー管理: 成功');

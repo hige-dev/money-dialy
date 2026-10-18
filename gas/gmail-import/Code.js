@@ -13,6 +13,7 @@ const RAKUTEN_PAY_SUBJECT_PHRASES = [
   '楽天ペイお支払い完了のお知らせ',
   '楽天ペイアプリ'
 ];
+const AU_PAY_SUBJECT = '【au PAY】ご利用のお知らせ [メールコードP1001]';
 
 // スクリプトプロパティから設定を取得
 function getScriptConfig() {
@@ -52,9 +53,10 @@ function processPaymentEmails() {
   const rakutenPaySubjectsQuery = RAKUTEN_PAY_SUBJECT_PHRASES
     .map(phrase => `subject:"${phrase}"`)
     .join(' OR ');
+  const auPayQuery = `from:info@wallet.auone.jp subject:"${AU_PAY_SUBJECT}"`;
   const query = [
     'is:unread',
-    `((from:info@mail.rakuten-card.co.jp (${rakutenSubjectsQuery})) OR (${smbcQuery}) OR (from:pay.rakuten.co.jp (${rakutenPaySubjectsQuery})))`
+    `((from:info@mail.rakuten-card.co.jp (${rakutenSubjectsQuery})) OR (${smbcQuery}) OR (from:pay.rakuten.co.jp (${rakutenPaySubjectsQuery})) OR (${auPayQuery}))`
   ].join(' ');
 
   Logger.log(`検索条件: ${query}`);
@@ -161,11 +163,17 @@ function isRakutenPayEmail(from, subject) {
   return isRakutenPaySender && hasRakutenPaySubject;
 }
 
+function isAUPayEmail(from, subject) {
+  const isAUPaySender = /(?:^|<)info@wallet\.auone\.jp(?:>|$)/i.test(from.trim());
+  return isAUPaySender && subject.includes(AU_PAY_SUBJECT);
+}
+
 function isSupportedImportEmail(from, subject, body) {
   const isRakutenCardEmail = RAKUTEN_CARD_SUBJECTS.includes(subject.trim()) && isRakutenCardSender(from);
   return isRakutenCardEmail ||
     isSmbcEmail(from, subject, body) ||
-    isRakutenPayEmail(from, subject);
+    isRakutenPayEmail(from, subject) ||
+    isAUPayEmail(from, subject);
 }
 
 /**
