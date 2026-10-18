@@ -14,6 +14,10 @@ const RAKUTEN_PAY_SUBJECT_PHRASES = [
   '楽天ペイアプリ'
 ];
 const AU_PAY_SUBJECT = '【au PAY】ご利用のお知らせ [メールコードP1001]';
+const LAST_SCAN_PROPERTY = 'GMAIL_IMPORT_LAST_SCAN_AT';
+const INITIAL_READ_BACKFILL_MS = 7 * 24 * 60 * 60 * 1000;
+const SEARCH_DATE_PADDING_MS = 2 * 24 * 60 * 60 * 1000;
+const RETRY_OVERLAP_MS = 5 * 60 * 1000;
 
 // スクリプトプロパティから設定を取得
 function getScriptConfig() {
@@ -37,13 +41,39 @@ function setConfig(backendUrl, webhookSecret) {
 }
 
 /**
- * 未読の利用通知メールを検索し、バックエンド API に送信する
+ * 新着の利用通知メールを検索し、バックエンド API に送信する
  */
 function processPaymentEmails() {
+  const lock = LockService.getScriptLock();
+  if (!lock.tryLock(1000)) {
+    Logger.log('別の取込処理が実行中のため、今回はスキップしました。');
+    return;
+  }
+
+  try {
+    processPaymentEmailsWithLock();
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function processPaymentEmailsWithLock() {
   const config = getScriptConfig();
   if (!config.backendUrl || !config.webhookSecret) {
     Logger.log('設定エラー: BACKEND_URL または WEBHOOK_SECRET が未設定です。setConfig(url, secret) を実行してください。');
     return;
+  }
+
+  const runStartedAt = new Date();
+  const props = PropertiesService.getScriptProperties();
+  const storedLastScan = props.getProperty(LAST_SCAN_PROPERTY);
+  const parsedLastScan = storedLastScan ? Date.parse(storedLastScan) : NaN;
+  const lastScanAt = Number.isFinite(parsedLastScan) ? parsedLastScan : null;
+  const searchFrom = lastScanAt === null
+    ? runStartedAt.getTime() - INITIAL_READ_BACKFILL_MS
+    : lastScanAt;
+  if (storedLastScan && lastScanAt === null) {
+    Logger.log('前回の取込時刻を読み取れないため、初回実行として処理します。');
   }
 
   const rakutenSubjectsQuery = RAKUTEN_CARD_SUBJECTS
@@ -54,10 +84,14 @@ function processPaymentEmails() {
     .map(phrase => `subject:"${phrase}"`)
     .join(' OR ');
   const auPayQuery = `from:info@wallet.auone.jp subject:"${AU_PAY_SUBJECT}"`;
-  const query = [
-    'is:unread',
-    `((from:info@mail.rakuten-card.co.jp (${rakutenSubjectsQuery})) OR (${smbcQuery}) OR (from:pay.rakuten.co.jp (${rakutenPaySubjectsQuery})) OR (${auPayQuery}))`
-  ].join(' ');
+  const supportedQuery = `((from:info@mail.rakuten-card.co.jp (${rakutenSubjectsQuery})) OR (${smbcQuery}) OR (from:pay.rakuten.co.jp (${rakutenPaySubjectsQuery})) OR (${auPayQuery}))`;
+  const searchAfter = formatGmailSearchDate(new Date(
+    searchFrom - SEARCH_DATE_PADDING_MS
+  ));
+  const freshnessQuery = lastScanAt === null
+    ? `{is:unread after:${searchAfter}}`
+    : `after:${searchAfter}`;
+  const query = `${freshnessQuery} ${supportedQuery}`;
 
   Logger.log(`検索条件: ${query}`);
 
@@ -74,11 +108,19 @@ function processPaymentEmails() {
   const labelProcessed = getOrCreateLabel('処理済み');
 
   let successCount = 0;
+  let earliestFailureAt = null;
 
   for (const thread of threads) {
     const messages = thread.getMessages();
     for (const message of messages) {
-      if (!message.isUnread()) continue;
+      const messageDate = message.getDate();
+      const messageTime = messageDate.getTime();
+      const isUnread = message.isUnread();
+      if (lastScanAt === null) {
+        if (!isUnread && messageTime <= searchFrom) continue;
+      } else if (messageTime <= lastScanAt - RETRY_OVERLAP_MS) {
+        continue;
+      }
 
       const subject = message.getSubject().trim();
       const from = message.getFrom();
@@ -133,15 +175,33 @@ function processPaymentEmails() {
           thread.addLabel(labelProcessed);
           successCount++;
         } else {
+          earliestFailureAt = earliestFailureAt === null
+            ? messageTime
+            : Math.min(earliestFailureAt, messageTime);
           Logger.log(`取込失敗: HTTP ${code}、JSON応答 ${jsonRes !== null}、内容 ${resText.substring(0, 150)}`);
         }
       } catch (e) {
+        earliestFailureAt = earliestFailureAt === null
+          ? messageTime
+          : Math.min(earliestFailureAt, messageTime);
         Logger.log(`送信失敗: ${e.toString()}`);
       }
     }
   }
 
+  const nextScanAt = earliestFailureAt === null
+    ? runStartedAt.getTime()
+    : Math.max(0, earliestFailureAt - RETRY_OVERLAP_MS);
+  props.setProperty(LAST_SCAN_PROPERTY, new Date(nextScanAt).toISOString());
+
   Logger.log(`完了: ${successCount} 件のメールを処理しました。`);
+}
+
+function formatGmailSearchDate(date) {
+  const year = date.getUTCFullYear();
+  const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+  const day = String(date.getUTCDate()).padStart(2, '0');
+  return `${year}/${month}/${day}`;
 }
 
 function isRakutenCardSender(from) {
