@@ -57,6 +57,11 @@ function processPaymentEmails() {
   }
 }
 
+/** 旧関数名で登録されたトリガーから利用通知メールを取り込む。 */
+function processRakutenCardEmails() {
+  processPaymentEmails();
+}
+
 function processPaymentEmailsWithLock() {
   const config = getScriptConfig();
   if (!config.backendUrl || !config.webhookSecret) {
@@ -268,7 +273,8 @@ function createTimeDrivenTrigger() {
 function deleteTriggers() {
   const triggers = ScriptApp.getProjectTriggers();
   for (const trigger of triggers) {
-    if (trigger.getHandlerFunction() === 'processPaymentEmails') {
+    const handlerFunction = trigger.getHandlerFunction();
+    if (handlerFunction === 'processPaymentEmails' || handlerFunction === 'processRakutenCardEmails') {
       ScriptApp.deleteTrigger(trigger);
     }
   }

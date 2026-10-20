@@ -22,6 +22,7 @@ const scriptProperties = new Map([
   ['GMAIL_IMPORT_LAST_SCAN_AT', '2026-09-25T11:55:00.000Z'],
 ]);
 const triggers = [
+  { handlerFunction: 'processRakutenCardEmails', getHandlerFunction() { return this.handlerFunction; } },
   { handlerFunction: 'processPaymentEmails', getHandlerFunction() { return this.handlerFunction; } },
   { handlerFunction: 'forwardEmailToLine', getHandlerFunction() { return this.handlerFunction; } },
 ];
@@ -158,18 +159,26 @@ scriptProperties.delete('GMAIL_IMPORT_LAST_SCAN_AT');
 sent.length = 0;
 read.length = 0;
 searchCalls.length = 0;
-context.processPaymentEmails();
+context.processRakutenCardEmails();
 assert.equal(searchQuery.startsWith('{is:unread after:2026/10/10} '), true);
+assert.deepEqual(sent, ['速報', '前回処理済み', '詳細', '三井住友送信元', '三井住友本文', '楽天ペイ', 'au PAY', 'au PAY表示名付き']);
 assert.equal(sent.includes('楽天ペイ'), true);
 assert.equal(read.includes('楽天ペイ'), true);
 
 context.createTimeDrivenTrigger();
-assert.deepEqual(deletedTriggers, ['processPaymentEmails']);
+assert.deepEqual(deletedTriggers, ['processRakutenCardEmails', 'processPaymentEmails']);
+assert.equal(triggers.some(trigger => trigger.handlerFunction === 'processRakutenCardEmails'), false);
 assert.equal(triggers.some(trigger => trigger.handlerFunction === 'forwardEmailToLine'), true);
 assert.equal(triggers.filter(trigger => trigger.handlerFunction === 'processPaymentEmails').length, 1);
 assert.equal(triggers.find(trigger => trigger.handlerFunction === 'processPaymentEmails').hours, 1);
 
+context.createTimeDrivenTrigger();
+assert.equal(triggers.filter(trigger => trigger.handlerFunction === 'processPaymentEmails').length, 1);
+assert.equal(triggers.some(trigger => trigger.handlerFunction === 'forwardEmailToLine'), true);
+
+triggers.push({ handlerFunction: 'processRakutenCardEmails', getHandlerFunction() { return this.handlerFunction; } });
 context.deleteTriggers();
 assert.equal(triggers.some(trigger => trigger.handlerFunction === 'processPaymentEmails'), false);
+assert.equal(triggers.some(trigger => trigger.handlerFunction === 'processRakutenCardEmails'), false);
 assert.equal(triggers.some(trigger => trigger.handlerFunction === 'forwardEmailToLine'), true);
-console.log('4系統の対象判定、既読メールの差分取込、初回7日分の補完、ページング、トリガー管理: 成功');
+console.log('4系統の対象判定、既読メールの差分取込、初回7日分の補完、ページング、旧トリガー互換、トリガー管理: 成功');
