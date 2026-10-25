@@ -32,7 +32,10 @@ function MappingModal({
   const [identifier, setIdentifier] = useState(initial?.identifier ?? draft?.identifier ?? '');
   const [payer, setPayer] = useState(initial?.payer ?? '');
   const [category, setCategory] = useState(initial?.category ?? draft?.category ?? '');
-  const [place, setPlace] = useState(initial?.place ?? '');
+  const initialPlace = initial?.place ?? '';
+  const isPredefinedPlace = places.some((p) => p.name === initialPlace);
+  const [place, setPlace] = useState(!initialPlace ? '' : isPredefinedPlace ? initialPlace : '__other__');
+  const [customPlace, setCustomPlace] = useState(!initialPlace || isPredefinedPlace ? '' : initialPlace);
   const [comment, setComment] = useState(initial?.comment ?? '');
   const [exclude, setExclude] = useState(initial?.exclude ?? false);
 
@@ -99,12 +102,22 @@ function MappingModal({
 
         <div className="modal-field">
           <label>適用する場所</label>
-          <select value={place} onChange={(e) => setPlace(e.target.value)}>
+          <select value={place} onChange={(e) => { setPlace(e.target.value); if (e.target.value !== '__other__') setCustomPlace(''); }}>
             <option value="">(指定なし)</option>
             {places.map((p) => (
               <option key={p.id} value={p.name}>{p.name}</option>
             ))}
+            <option value="__other__">その他</option>
           </select>
+          {place === '__other__' && (
+            <input
+              type="text"
+              placeholder="場所を入力"
+              value={customPlace}
+              onChange={(e) => setCustomPlace(e.target.value)}
+              style={{ marginTop: '6px' }}
+            />
+          )}
         </div>
 
         {commentField}
@@ -126,7 +139,7 @@ function MappingModal({
               identifier,
               payer: payer || undefined,
               category: category || undefined,
-              place: place || undefined,
+              place: (place === '__other__' ? customPlace.trim() : place) || undefined,
               comment: comment || undefined,
               exclude,
             })}
