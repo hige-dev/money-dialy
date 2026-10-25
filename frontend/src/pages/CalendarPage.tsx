@@ -203,7 +203,7 @@ export function CalendarPage() {
 
   return (
     <>
-      <div className="review-entry"><Link to="/search">支出検索・重複確認</Link></div>
+      <div className="review-entry"><Link to="/review">確認待ち</Link><Link to="/search">支出検索・重複確認</Link></div>
       <MonthPicker value={date} onChange={setDate} mode="month" />
 
       {loading ? (

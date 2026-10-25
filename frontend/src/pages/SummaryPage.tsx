@@ -1,4 +1,5 @@
 import { ExpenseEditModal } from '../components/ExpenseEditModal';
+import { Link } from 'react-router-dom';
 import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { Chart as ChartJS, ArcElement, Tooltip, Legend, CategoryScale, LinearScale, BarElement, Title } from 'chart.js';
 import type { ChartOptions } from 'chart.js';
@@ -319,6 +320,7 @@ export function SummaryPage() {
   if (loading && !summary) {
     return (
       <>
+        <div className="review-entry"><Link to="/review">確認待ち</Link></div>
         <MonthPicker value={date} onChange={setDate} mode="month" />
         <div className="loading-spinner"><div className="spinner"></div></div>
       </>
@@ -330,6 +332,7 @@ export function SummaryPage() {
       <>
         <MonthPicker value={date} onChange={setDate} mode="month" />
         <div className="empty-state"><p>データの取得に失敗しました</p></div>
+        <div className="review-entry"><Link to="/review">確認待ち</Link></div>
       </>
     );
   }
@@ -349,6 +352,7 @@ export function SummaryPage() {
 
   return (
     <>
+      <div className="review-entry"><Link to="/review">確認待ち</Link></div>
       <MonthPicker value={date} onChange={setDate} mode="month" />
 
       {/* 支払元フィルタ */}
