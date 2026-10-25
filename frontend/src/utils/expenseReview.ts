@@ -1,4 +1,4 @@
-import type { Expense } from '../types';
+import type { Category, Expense } from '../types';
 
 export interface ExpenseSearchFilters {
   start: string;
@@ -104,4 +104,67 @@ export function findDuplicateCandidates(expenses: Expense[], userEmail: string):
     for (const manual of manualByKey.get(key(imported)) || []) result.push({ manual, imported });
   }
   return result;
+}
+
+export const PENDING_REVIEW_DAYS = 14;
+
+export interface ReviewPeriod {
+  start: string;
+  end: string;
+}
+
+/** 当日までの直近3か月を初期表示する。 */
+export function defaultReviewPeriod(now = new Date()): ReviewPeriod {
+  const format = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+  return { start: format(new Date(now.getFullYear(), now.getMonth() - 2, 1)), end: format(now) };
+}
+
+/** 詳細を確認できる明細だけを、分類と取込後の経過時間で振り分ける。 */
+export function buildExpenseReviewQueue(expenses: Expense[], categories: Category[], userEmail: string, now: Date) {
+  const categoryNames = new Map(categories.map(category => [category.id, category.name]));
+  const detailed = expenses.filter(expense => canViewExpenseDetails(expense, userEmail));
+  const uncategorized = detailed.filter(expense =>
+    !expense.category || expense.category === '未分類' || categoryNames.get(expense.category) === '未分類' || !categoryNames.has(expense.category)
+  ).sort((a, b) => b.date.localeCompare(a.date) || a.id.localeCompare(b.id));
+  const importedAt = (expense: Expense) => {
+    const created = Date.parse(expense.createdAt);
+    return Number.isFinite(created) ? created : validDate(expense.date) ? Date.parse(`${expense.date}T00:00:00+09:00`) : NaN;
+  };
+  const pending = detailed.filter(expense =>
+    expense.importStatus === 'pending' && now.getTime() - importedAt(expense) >= PENDING_REVIEW_DAYS * 24 * 60 * 60 * 1000
+  ).sort((a, b) => importedAt(a) - importedAt(b) || a.id.localeCompare(b.id));
+  const duplicates = findDuplicateCandidates(detailed, userEmail)
+    .sort((a, b) => b.manual.date.localeCompare(a.manual.date) || a.manual.id.localeCompare(b.manual.id) || a.imported.id.localeCompare(b.imported.id));
+  return { uncategorized, pending, duplicates };
+}
+
+/** 明細の更新や速報の補完後には、同じ組み合わせでも再確認する。 */
+export function duplicateReviewKey({ manual, imported }: DuplicateCandidate): string {
+  return JSON.stringify([manual.id, manual.updatedAt, imported.id, imported.updatedAt, imported.importStatus]);
+}
+
+export function reviewedDuplicatesStorageKey(userEmail: string): string {
+  return `money_diary_reviewed_duplicates:${encodeURIComponent(userEmail)}`;
+}
+
+type ReviewStorage = Pick<Storage, 'getItem' | 'setItem'>;
+
+export function readReviewedDuplicates(storage: ReviewStorage, userEmail: string): Set<string> {
+  const value = storage.getItem(reviewedDuplicatesStorageKey(userEmail));
+  if (value === null) return new Set();
+  const parsed: unknown = JSON.parse(value);
+  if (!Array.isArray(parsed) || !parsed.every(item => typeof item === 'string')) {
+    throw new Error('確認済みの情報を読み込めませんでした');
+  }
+  return new Set(parsed);
+}
+
+/** 別タブで保存された確認結果も読み直してから、対象の組だけを変更する。 */
+export function setDuplicateReviewed(storage: ReviewStorage, userEmail: string, candidate: DuplicateCandidate, reviewed: boolean): Set<string> {
+  const keys = readReviewedDuplicates(storage, userEmail);
+  const key = duplicateReviewKey(candidate);
+  if (reviewed) keys.add(key);
+  else keys.delete(key);
+  storage.setItem(reviewedDuplicatesStorageKey(userEmail), JSON.stringify([...keys]));
+  return keys;
 }

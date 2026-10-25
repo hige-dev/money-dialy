@@ -1,3 +1,4 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { GoogleOAuthProvider, useGoogleOneTapLogin, type CredentialResponse } from '@react-oauth/google';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
@@ -15,6 +16,8 @@ import { BulkExpensePage } from './pages/BulkExpensePage';
 import { AdminMappingsPage } from './pages/AdminMappingsPage';
 import { config, isLocalBackend } from './config';
 import './App.css';
+
+const ExpenseReviewPage = lazy(() => import('./pages/ExpenseReviewPage').then(module => ({ default: module.ExpenseReviewPage })));
 
 const TOKEN_REFRESH_THRESHOLD_MS = 7 * 24 * 60 * 60 * 1000; // 7日
 
@@ -70,6 +73,7 @@ function AdminRoute({ children }: { children: React.ReactNode }) {
 }
 
 function AppRoutes() {
+  const { user } = useAuth();
   return (
     <ProtectedRoute>
       <div className="app-layout">
@@ -78,6 +82,7 @@ function AppRoutes() {
             <Route path="/" element={<SummaryPage />} />
             <Route path="/input" element={<ExpenseInputPage />} />
             <Route path="/search" element={<ExpenseSearchPage />} />
+            <Route path="/review" element={<Suspense fallback={<LoadingSpinner message="確認待ちを読み込み中…" />}><ExpenseReviewPage key={user?.email} /></Suspense>} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/list" element={<Navigate to="/calendar" replace />} />
             <Route path="/recurring" element={<AdminRoute><RecurringPage /></AdminRoute>} />

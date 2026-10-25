@@ -27,7 +27,7 @@ jobs:
       - name: 静的解析
         run: npm run lint
 
-      - name: 支出検索と重複候補のテスト
+      - name: 支出検索・確認待ち・重複候補のテスト
         run: npm run test
 
   backend:

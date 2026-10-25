@@ -193,14 +193,14 @@ export const payersApi = {
 
 // 支出API（月別キャッシュ、変更時に破棄）
 export const expensesApi = {
-  async getByPeriod(start: string, end: string): Promise<Expense[]> {
-    return loadExpensePeriod(start, end, month => expensesApi.getByMonth(month));
+  async getByPeriod(start: string, end: string, refresh = false): Promise<Expense[]> {
+    return loadExpensePeriod(start, end, month => expensesApi.getByMonth(month, refresh));
   },
 
-  async getByMonth(month: string): Promise<Expense[]> {
+  async getByMonth(month: string, refresh = false): Promise<Expense[]> {
     const key = `expenses:${month}`;
     const cached = cacheGet<Expense[]>(key);
-    if (cached) return cached;
+    if (cached && !refresh) return cached;
     return cacheSet(key, await callApi<Expense[]>('getExpenses', { month }));
   },
 
