@@ -21,10 +21,10 @@ jobs:
 
       - run: npm ci
 
-      - name: Type check
-        run: npx tsc -b --noEmit
+      - name: 型チェックと本番ビルド
+        run: npm run build
 
-      - name: Lint
+      - name: 静的解析
         run: npm run lint
 
       - name: 支出検索と重複候補のテスト
@@ -32,6 +32,19 @@ jobs:
 
   backend:
     runs-on: ubuntu-latest
+    services:
+      dynamodb-local:
+        image: amazon/dynamodb-local:3.3.0
+        ports:
+          - 127.0.0.1:8000:8000
+        options: >-
+          --health-cmd "curl --silent --show-error --output /dev/null http://127.0.0.1:8000"
+          --health-interval 3s
+          --health-timeout 3s
+          --health-start-period 20s
+          --health-retries 20
+    env:
+      LOCAL_DYNAMO_TEST_ENDPOINT: http://127.0.0.1:8000
     defaults:
       run:
         working-directory: lambda
@@ -42,11 +55,26 @@ jobs:
         with:
           go-version-file: lambda/go.mod
 
-      - name: Build
+      - name: ビルド
         run: go build ./...
 
-      - name: Vet
+      - name: 静的解析
         run: go vet ./...
 
-      - name: Test
-        run: go test ./...
+      - name: 単体テストとDB統合テスト
+        run: go test -count=1 -v ./...
+
+  gas:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Gmail取込のテスト
+        run: node gas/gmail-import/Code.test.cjs
+
+      - name: LINE通知のテスト
+        run: node gas/line-notifier/test.cjs
