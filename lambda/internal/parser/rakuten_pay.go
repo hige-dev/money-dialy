@@ -68,7 +68,7 @@ func ParseRakutenPayEmail(body string, defaultPayer string, defaultCategory stri
 	}
 
 	dateStr := strings.ReplaceAll(dateMatch[1], "/", "-")
-	placeStr := strings.TrimSpace(placeMatch[1])
+	placeStr := normalizeKatakanaLongVowels(strings.TrimSpace(placeMatch[1]))
 
 	amountClean := strings.ReplaceAll(amountMatch[1], ",", "")
 	amount, err := strconv.Atoi(amountClean)

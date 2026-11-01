@@ -3,6 +3,7 @@ package parser
 import (
 	"fmt"
 	"strings"
+	"unicode"
 
 	"golang.org/x/text/unicode/norm"
 
@@ -40,7 +41,19 @@ func ParseEmail(from, subject, body string) ([]model.ExpenseInput, string, error
 	return nil, "", fmt.Errorf("対応するカードパーサーが見つかりませんでした (from: %s, subject: %s)", from, subject)
 }
 
-// normalizePlace は店舗名などの文字列を正規化する（全角英数記号→半角、半角カタカナ→全角、前後の空白除去）
+// normalizePlace は全角英数記号・半角カタカナ・長音を正規化し、前後の空白を除去する。
 func normalizePlace(s string) string {
-	return strings.TrimSpace(norm.NFKC.String(s))
+	return normalizeKatakanaLongVowels(strings.TrimSpace(norm.NFKC.String(s)))
+}
+
+// normalizeKatakanaLongVowels はカタカナ直後のハイフンを全角の長音に変換する。
+func normalizeKatakanaLongVowels(s string) string {
+	var previous rune
+	return strings.Map(func(r rune) rune {
+		if r == '-' && unicode.Is(unicode.Katakana, previous) {
+			r = 'ー'
+		}
+		previous = r
+		return r
+	}, s)
 }
