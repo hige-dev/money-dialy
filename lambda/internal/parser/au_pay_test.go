@@ -90,6 +90,32 @@ func TestParseAUPayEmail_NormalizationAndDefaults(t *testing.T) {
 	}
 }
 
+func TestParseAUPayEmail_Forwarded(t *testing.T) {
+	want := model.ExpenseInput{
+		Date: "2026-10-16", Payer: "au PAY", Category: "未分類", Amount: 100,
+		Place: "J118078", Memo: "au PAY", Visibility: "public",
+	}
+	header := "---------- Forwarded message ---------\r\n" +
+		"From: au PAY <info@wallet.auone.jp>\r\n" +
+		"Date: 2026年10月16日(金) 13:34\r\n" +
+		"Subject: " + auPaySubject + "\r\n\r\n"
+	for _, tt := range []struct {
+		name string
+		body string
+	}{
+		{name: "転送ヘッダー付き", body: header + auPayBody},
+		{name: "引用記号付き", body: header + "> " + strings.ReplaceAll(auPayBody, "\r\n", "\r\n> ")},
+		{name: "全角と多重の引用記号", body: "＞>" + strings.ReplaceAll(auPayBody, "\r\n", "\r\n＞>")},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			expenses := ParseAUPayEmail(tt.body, "", "")
+			if len(expenses) != 1 || expenses[0] != want {
+				t.Fatalf("転送メールの解析結果が想定と異なります: 取得=%+v, 期待=%+v", expenses, want)
+			}
+		})
+	}
+}
+
 func TestParseAUPayEmail_InvalidDetails(t *testing.T) {
 	for _, tt := range []struct {
 		name string

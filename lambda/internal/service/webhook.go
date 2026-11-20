@@ -22,7 +22,7 @@ func ProcessGmailWebhook(ctx context.Context, client *dynamo.Client, req *model.
 	}
 
 	// 登録済みのパーサーから自動判定して抽出
-	inputs, cardName, err := parser.ParseEmail(req.From, req.Subject, req.Body)
+	inputs, cardName, err := parser.ParseEmail(gmailSender(req), req.Subject, req.Body)
 	if err != nil {
 		return nil, apperror.Newf("パースエラー (%s): %v", cardName, err)
 	}
@@ -137,6 +137,14 @@ func ProcessGmailWebhook(ctx context.Context, client *dynamo.Client, req *model.
 		}
 	}
 	return results, nil
+}
+
+// gmailSender はパーサー判定に使う送信元を返す。転送メールでは元の送信元を優先する。
+func gmailSender(req *model.WebhookGmailRequest) string {
+	if forwardedFrom := strings.TrimSpace(req.ForwardedFrom); forwardedFrom != "" {
+		return forwardedFrom
+	}
+	return req.From
 }
 
 func importKey(messageID string, index int) string {

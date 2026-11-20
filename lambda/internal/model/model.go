@@ -209,6 +209,8 @@ type WebhookGmailRequest struct {
 	Subject   string `json:"subject"`
 	Body      string `json:"body"`
 	From      string `json:"from"`
+	// ForwardedFrom は転送メールの元の送信元。GAS が転送先アドレスで確認できた場合だけ設定する
+	ForwardedFrom string `json:"forwardedFrom,omitempty"`
 }
 
 // ActionRequest はリクエストボディ
