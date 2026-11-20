@@ -14,6 +14,9 @@ const RAKUTEN_PAY_SUBJECT_PHRASES = [
   '楽天ペイアプリ'
 ];
 const AU_PAY_SUBJECT = '【au PAY】ご利用のお知らせ [メールコードP1001]';
+const AU_PAY_SENDER = 'info@wallet.auone.jp';
+const AU_PAY_FORWARD_FROM_PROPERTY = 'AU_PAY_FORWARD_FROM';
+const AU_PAY_FORWARD_TO_PROPERTY = 'AU_PAY_FORWARD_TO';
 const LAST_SCAN_PROPERTY = 'GMAIL_IMPORT_LAST_SCAN_AT';
 const INITIAL_READ_BACKFILL_MS = 7 * 24 * 60 * 60 * 1000;
 const SEARCH_DATE_PADDING_MS = 2 * 24 * 60 * 60 * 1000;
@@ -24,8 +27,33 @@ function getScriptConfig() {
   const props = PropertiesService.getScriptProperties();
   return {
     backendUrl: props.getProperty('BACKEND_URL'),
-    webhookSecret: props.getProperty('WEBHOOK_SECRET')
+    webhookSecret: props.getProperty('WEBHOOK_SECRET'),
+    auPayForward: getAUPayForwardConfig(props)
   };
+}
+
+/**
+ * au PAY の転送メールの判定条件を返す。転送元・転送先はどちらか一方だけでも設定でき、両方設定すると両方に一致したメールだけを対象にする。
+ * どちらかがメールアドレスの形式でない場合は、条件が意図より緩くならないよう転送メールの取込を無効にする。
+ */
+function getAUPayForwardConfig(props) {
+  const from = normalizeForwardAddress(props.getProperty(AU_PAY_FORWARD_FROM_PROPERTY), AU_PAY_FORWARD_FROM_PROPERTY);
+  const to = normalizeForwardAddress(props.getProperty(AU_PAY_FORWARD_TO_PROPERTY), AU_PAY_FORWARD_TO_PROPERTY);
+  if (from === null || to === null) return { from: '', to: '' };
+  return { from, to };
+}
+
+/**
+ * 転送元・転送先のアドレスを検索条件に使える形へ整える。未設定は空文字、不正な値は null にする。
+ */
+function normalizeForwardAddress(value, propertyName) {
+  const address = (value || '').trim().toLowerCase();
+  if (!address) return '';
+  if (!/^[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$/.test(address)) {
+    Logger.log(`設定エラー: ${propertyName} がメールアドレスの形式ではないため、転送メールの取込を無効にします。`);
+    return null;
+  }
+  return address;
 }
 
 /**
@@ -88,7 +116,14 @@ function processPaymentEmailsWithLock() {
   const rakutenPaySubjectsQuery = RAKUTEN_PAY_SUBJECT_PHRASES
     .map(phrase => `subject:"${phrase}"`)
     .join(' OR ');
-  const auPayQuery = `from:info@wallet.auone.jp subject:"${AU_PAY_SUBJECT}"`;
+  const auPayForwardQuery = [
+    config.auPayForward.from ? `from:${config.auPayForward.from}` : '',
+    config.auPayForward.to ? `{to:${config.auPayForward.to} deliveredto:${config.auPayForward.to}}` : ''
+  ].filter(Boolean).join(' ');
+  const auPaySenderQuery = auPayForwardQuery
+    ? `(from:${AU_PAY_SENDER} OR (${auPayForwardQuery}))`
+    : `from:${AU_PAY_SENDER}`;
+  const auPayQuery = `${auPaySenderQuery} subject:"${AU_PAY_SUBJECT}"`;
   const supportedQuery = `((from:info@mail.rakuten-card.co.jp (${rakutenSubjectsQuery})) OR (${smbcQuery}) OR (from:pay.rakuten.co.jp (${rakutenPaySubjectsQuery})) OR (${auPayQuery}))`;
   const searchAfter = formatGmailSearchDate(new Date(
     searchFrom - SEARCH_DATE_PADDING_MS
@@ -130,7 +165,10 @@ function processPaymentEmailsWithLock() {
       const subject = message.getSubject().trim();
       const from = message.getFrom();
       const body = message.getPlainBody();
-      if (!isSupportedImportEmail(from, subject, body)) {
+      const forwardedFrom = isForwardedAUPayEmail(message, subject, config.auPayForward)
+        ? AU_PAY_SENDER
+        : '';
+      if (!forwardedFrom && !isSupportedImportEmail(from, subject, body)) {
         continue;
       }
 
@@ -144,6 +182,9 @@ function processPaymentEmailsWithLock() {
           from
         }
       };
+      if (forwardedFrom) {
+        payload.gmail.forwardedFrom = forwardedFrom;
+      }
 
       const options = {
         method: 'post',
@@ -231,6 +272,29 @@ function isRakutenPayEmail(from, subject) {
 function isAUPayEmail(from, subject) {
   const isAUPaySender = /(?:^|<)info@wallet\.auone\.jp(?:>|$)/i.test(from.trim());
   return isAUPaySender && subject.includes(AU_PAY_SUBJECT);
+}
+
+/**
+ * 設定した転送元・転送先と一致する au PAY 利用通知の転送メールかを判定する。
+ * 転送メールは送信元が転送者になるため、転送元のアドレスか宛先で判定する。
+ */
+function isForwardedAUPayEmail(message, subject, forward) {
+  if (!forward.from && !forward.to) return false;
+  if (!subject.includes(AU_PAY_SUBJECT)) return false;
+  if (forward.from && senderAddress(message.getFrom()) !== forward.from) return false;
+  if (forward.to && ![message.getTo(), message.getHeader('Delivered-To')].some(value =>
+    ((value || '').toLowerCase().match(/[^\s<>,;:"']+@[^\s<>,;:"']+/g) || []).includes(forward.to)
+  )) return false;
+  return true;
+}
+
+/**
+ * From ヘッダーから送信元アドレスを取り出す。表示名にアドレスを書いた偽装を避けるため、山括弧内を優先する。
+ */
+function senderAddress(from) {
+  const value = (from || '').trim().toLowerCase();
+  const bracketed = value.match(/<([^<>\s]+)>$/);
+  return bracketed ? bracketed[1] : value;
 }
 
 function isSupportedImportEmail(from, subject, body) {

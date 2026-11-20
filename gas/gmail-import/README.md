@@ -8,7 +8,7 @@
 - `appsscript.json`: 実行環境と権限の設定
 - `.clasp.json.example`: ローカルClasp設定のひな型
 - `package.json`: Claspコマンド
-- `Code.test.cjs`: 対象件名、送信元、本文判定のローカルテスト
+- `Code.test.cjs`: 対象件名、送信元、転送元・転送先、本文判定のローカルテスト
 
 ## Claspの設定とソース反映
 
@@ -36,6 +36,8 @@ GASエディタの「プロジェクトの設定」→「スクリプト プロ�
 | --- | --- |
 | `BACKEND_URL` | Lambdaの `WebhookUrl` |
 | `WEBHOOK_SECRET` | バックエンドの `WebhookSecret` と同じ値 |
+| `AU_PAY_FORWARD_FROM` | 任意。au PAY の通知を転送する元のアドレス |
+| `AU_PAY_FORWARD_TO` | 任意。au PAY の転送メールを受け取るアドレス（例: `ユーザー名+aupay@gmail.com`） |
 
 GASエディタのトリガー画面から `processPaymentEmails` を時間主導で登録できます。`createTimeDrivenTrigger` を実行すると、`processPaymentEmails` と `processRakutenCardEmails` の既存トリガーを削除して、`processPaymentEmails` の1時間ごとのトリガーを登録します。`deleteTriggers` は両関数の既存トリガーを削除します。`processRakutenCardEmails` は互換用の入口として `processPaymentEmails` を実行し、同じ取込対象を処理します。
 
@@ -48,7 +50,7 @@ GASエディタのトリガー画面から `processPaymentEmails` を時間主�
   - `【速報版】カード利用のお知らせ(本人ご利用分)`
 - 三井住友カード: 件名に `ご利用のお知らせ【三井住友カード】` を含み、送信元に `vpass.ne.jp`、`smbc-card.com`、`smbc.co.jp` のいずれかを含むか、本文に `三井住友カード` を含むメール。
 - 楽天ペイ: 送信元に `no-reply@pay.rakuten.co.jp` または `pay.rakuten.co.jp` を含み、件名に `楽天ペイお支払い完了のお知らせ` または `楽天ペイアプリ` を含むメール。
-- au PAY: 送信元が `info@wallet.auone.jp` で、件名に `【au PAY】ご利用のお知らせ [メールコードP1001]` を含むメール。バックエンドは本文の種別が `支払` の明細を取り込みます。
+- au PAY: 送信元が `info@wallet.auone.jp` で、件名に `【au PAY】ご利用のお知らせ [メールコードP1001]` を含むメール。バックエンドは本文の種別が `支払` の明細を取り込みます。`AU_PAY_FORWARD_FROM`（送信元で判定）か `AU_PAY_FORWARD_TO`（宛先の `To` または `Delivered-To` で判定）を設定すると、同じ件名を含む転送メールも取り込みます。両方を設定した場合は両方に一致したメールだけを取り込みます。このときWebhookの `forwardedFrom` に `info@wallet.auone.jp` を設定します。詳しくは[Gmail取込の仕様](../../docs/gmail-import.md#au-pay-の転送メール)を参照してください。
 
 Gmail検索は20スレッドずつ行い、全ページの検索結果を収集してから各メールを処理します。検索条件は前回時刻より2日分広く取り、メールごとに前回時刻の5分前以降かを判定します。
 

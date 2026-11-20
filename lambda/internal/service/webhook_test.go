@@ -6,6 +6,24 @@ import (
 	"money-diary/internal/model"
 )
 
+func TestGmailSenderPrefersForwardedFrom(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		req  model.WebhookGmailRequest
+		want string
+	}{
+		{name: "通常", req: model.WebhookGmailRequest{From: "info@wallet.auone.jp"}, want: "info@wallet.auone.jp"},
+		{name: "転送", req: model.WebhookGmailRequest{From: "forwarder@example.com", ForwardedFrom: "info@wallet.auone.jp"}, want: "info@wallet.auone.jp"},
+		{name: "空白のみ", req: model.WebhookGmailRequest{From: "forwarder@example.com", ForwardedFrom: " "}, want: "forwarder@example.com"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := gmailSender(&tt.req); got != tt.want {
+				t.Errorf("送信元が想定と異なります: 取得=%s, 期待=%s", got, tt.want)
+			}
+		})
+	}
+}
+
 func TestImportKeyPerItemAndRetry(t *testing.T) {
 	first := importKey("メール1", 0)
 	if first != importKey("メール1", 0) {

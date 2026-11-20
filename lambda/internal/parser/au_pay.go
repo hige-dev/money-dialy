@@ -46,15 +46,20 @@ var (
 	reAUPayAmount = regexp.MustCompile(`^([0-9]+(?:,[0-9]{3})*)[ \t]*円$`)
 )
 
+// trimAUPayLine は前後の空白と、転送メールで行頭に付く引用記号を除去する。
+func trimAUPayLine(line string) string {
+	return strings.TrimSpace(strings.TrimLeft(strings.TrimSpace(line), "> "))
+}
+
 // ParseAUPayEmail は利用日時・利用店舗・支払金額から支出を抽出する。
 func ParseAUPayEmail(body, defaultPayer, defaultCategory string) []model.ExpenseInput {
 	fields := make(map[string]string)
 	lines := strings.Split(norm.NFKC.String(body), "\n")
 	for i := 0; i+1 < len(lines); i++ {
-		heading := strings.TrimSpace(lines[i])
+		heading := trimAUPayLine(lines[i])
 		switch heading {
 		case "■利用店舗", "■種別", "■利用日時", "■支払金額":
-			value := strings.TrimSpace(lines[i+1])
+			value := trimAUPayLine(lines[i+1])
 			if strings.HasPrefix(value, "■") {
 				return nil
 			}
