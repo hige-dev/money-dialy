@@ -2,7 +2,6 @@ package service
 
 import (
 	"context"
-	"log"
 	"time"
 
 	"github.com/google/uuid"
@@ -66,7 +65,6 @@ func CreateExpense(ctx context.Context, client *dynamo.Client, input *model.Expe
 		return nil, err
 	}
 
-	refreshSummaryCache(ctx, client, expense.Date)
 	return &expense, nil
 }
 
@@ -95,7 +93,6 @@ func BulkCreateExpenses(ctx context.Context, client *dynamo.Client, inputs []mod
 
 	now := time.Now().UTC().Format(time.RFC3339)
 	expenses := make([]model.Expense, 0, len(inputs))
-	affectedMonths := make(map[string]bool)
 
 	for _, input := range inputs {
 		visibility := input.Visibility
@@ -119,16 +116,6 @@ func BulkCreateExpenses(ctx context.Context, client *dynamo.Client, inputs []mod
 			return nil, apperror.Newf("%s の登録に失敗しました: %v", input.Date, err)
 		}
 		expenses = append(expenses, expense)
-		if len(input.Date) >= 7 {
-			affectedMonths[input.Date[:7]] = true
-		}
-	}
-
-	// 影響月のキャッシュをまとめて更新
-	for month := range affectedMonths {
-		if err := RefreshMonthlySummaryCache(ctx, client, month); err != nil {
-			log.Printf("monthlySummary cache refresh failed for %s: %v", month, err)
-		}
 	}
 
 	return expenses, nil
@@ -148,7 +135,6 @@ func UpdateExpense(ctx context.Context, client *dynamo.Client, id string, input 
 		return nil, apperror.WithStatus(404, "支出データが見つかりません")
 	}
 
-	oldDate := existing.Date
 	previousUpdatedAt := existing.UpdatedAt
 	wasImported := existing.ImportStatus != ""
 	previousStatus := existing.ImportStatus
@@ -179,10 +165,6 @@ func UpdateExpense(ctx context.Context, client *dynamo.Client, id string, input 
 		return nil, err
 	}
 
-	refreshSummaryCache(ctx, client, existing.Date)
-	if len(oldDate) >= 7 && len(existing.Date) >= 7 && oldDate[:7] != existing.Date[:7] {
-		refreshSummaryCache(ctx, client, oldDate)
-	}
 	return existing, nil
 }
 
@@ -204,26 +186,7 @@ func recordManualImportEdits(existing *model.Expense, input *model.ExpenseInput)
 
 // DeleteExpense は支出を削除する
 func DeleteExpense(ctx context.Context, client *dynamo.Client, id string) error {
-	// 削除前にデータ取得して yearMonth を特定
-	existing, _ := client.GetExpense(ctx, id)
-
-	if err := client.DeleteExpense(ctx, id); err != nil {
-		return err
-	}
-	if existing != nil {
-		refreshSummaryCache(ctx, client, existing.Date)
-	}
-	return nil
-}
-
-// refreshSummaryCache は支出日付から yearMonth を抽出してキャッシュを更新する
-func refreshSummaryCache(ctx context.Context, client *dynamo.Client, date string) {
-	if len(date) < 7 {
-		return
-	}
-	if err := RefreshMonthlySummaryCache(ctx, client, date[:7]); err != nil {
-		log.Printf("monthlySummary cache refresh failed for %s: %v", date[:7], err)
-	}
+	return client.DeleteExpense(ctx, id)
 }
 
 // GetPayerBalance は支払元の月別残額を返す。

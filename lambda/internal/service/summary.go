@@ -12,25 +12,6 @@ import (
 	"money-diary/internal/model"
 )
 
-// RefreshMonthlySummaryCache は指定月の集計キャッシュを再計算して保存する（共有カテゴリのみ）
-func RefreshMonthlySummaryCache(ctx context.Context, client *dynamo.Client, yearMonth string) error {
-	expenses, err := client.QueryExpensesByMonth(ctx, yearMonth)
-	if err != nil {
-		return err
-	}
-	catMaps, err := GetCategoryMaps(ctx, client, "")
-	if err != nil {
-		return err
-	}
-	allCategories := filterExpenseCategories(aggregateByCategory(expenses, yearMonth, "", catMaps), catMaps.IsExpense)
-	summaryCategories := filterSummaryCategories(allCategories, catMaps.ExcludeFromSummary)
-	total := sumCategories(summaryCategories)
-	byCategory := filterBreakdownCategories(summaryCategories, catMaps.ExcludeFromBreakdown)
-	return client.PutMonthlySummaryCache(ctx, &model.MonthData{
-		Month: yearMonth, Total: total, ByCategory: byCategory,
-	})
-}
-
 // GetMonthlySummary は指定月の集計データを返す（payer指定時はフィルタ）。
 // userEmail に応じて visibility フィルタを適用する。
 func GetMonthlySummary(ctx context.Context, client *dynamo.Client, month string, payer string, userEmail string) (*model.MonthlySummary, error) {

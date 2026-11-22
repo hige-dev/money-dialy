@@ -147,7 +147,6 @@ func ProcessGmailWebhook(ctx context.Context, client *dynamo.Client, req *model.
 			results = append(results, *saved)
 		}
 		if created {
-			refreshSummaryCache(ctx, client, e.Date)
 		}
 	}
 	return results, nil
@@ -328,7 +327,6 @@ func processRakutenItem(ctx context.Context, client *dynamo.Client, req *model.W
 				return nil, err
 			}
 			if ok {
-				refreshSummaryCache(ctx, client, e.Date)
 				return e, nil
 			}
 			continue
@@ -355,7 +353,6 @@ func processRakutenItem(ctx context.Context, client *dynamo.Client, req *model.W
 				return nil, err
 			}
 			if ok {
-				refreshSummaryCache(ctx, client, current.Date)
 				return current, nil
 			}
 			conflicted = true
@@ -370,7 +367,6 @@ func processRakutenItem(ctx context.Context, client *dynamo.Client, req *model.W
 			return nil, err
 		}
 		if ok {
-			refreshSummaryCache(ctx, client, e.Date)
 			return e, nil
 		}
 	}
@@ -461,7 +457,6 @@ func processRakutenExcludedDetail(ctx context.Context, client *dynamo.Client, re
 				return err
 			}
 			if ok {
-				refreshSummaryCache(ctx, client, current.Date)
 				return nil
 			}
 			conflicted = true

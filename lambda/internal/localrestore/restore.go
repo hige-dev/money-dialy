@@ -79,13 +79,12 @@ type Plan struct {
 	Payers     []model.Payer
 	Places     []model.Place
 	DeleteIDs  []string
-	Months     map[string]bool
 }
 
 // BuildPlan は名前で保存されたカテゴリをローカル ID に対応付ける。
 // マスタがない場合は決定的な ID で補完し、再取込による重複を防ぐ。
 func BuildPlan(source, existing []model.Expense, categories []model.Category, payers []model.Payer, places []model.Place, replace bool, createdBy string) (*Plan, error) {
-	plan := &Plan{Months: map[string]bool{}}
+	plan := &Plan{}
 	categoryNames, categoryIDs := map[string]string{}, map[string]bool{}
 	for _, cat := range categories {
 		if id, exists := categoryNames[cat.Name]; exists && id != cat.ID {
@@ -130,13 +129,11 @@ func BuildPlan(source, existing []model.Expense, categories []model.Category, pa
 			e.CreatedBy = createdBy
 		}
 		ids[e.ID] = true
-		plan.Months[e.Date[:7]] = true
 		plan.Expenses = append(plan.Expenses, e)
 	}
 	for _, e := range existing {
 		if ids[e.ID] || replace {
 			if len(e.Date) >= 7 {
-				plan.Months[e.Date[:7]] = true
 			}
 		}
 		if replace && !ids[e.ID] {
@@ -172,11 +169,6 @@ func Apply(ctx context.Context, client *dynamo.Client, plan *Plan) error {
 	for _, id := range plan.DeleteIDs {
 		if err := client.DeleteExpense(ctx, id); err != nil {
 			return err
-		}
-	}
-	for month := range plan.Months {
-		if err := service.RefreshMonthlySummaryCache(ctx, client, month); err != nil {
-			return fmt.Errorf("%s の集計更新に失敗: %w", month, err)
 		}
 	}
 	return nil
