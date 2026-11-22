@@ -3,6 +3,7 @@ package service
 import (
 	"testing"
 
+	"money-diary/internal/dynamo"
 	"money-diary/internal/model"
 )
 
@@ -125,5 +126,55 @@ func TestDetailedFirstMatching(t *testing.T) {
 	if importGroupKey("楽天カード", input) != importGroupKey("楽天カード", input) ||
 		importGroupKey("楽天カード", input) == importGroupKey("楽天カード", wrong) {
 		t.Fatal("照合グループの識別子が不正です")
+	}
+}
+
+func TestRakutenMatchingAcrossMonthEnd(t *testing.T) {
+	pending := model.Expense{ImportStatus: "pending", ImportCard: "楽天カード", ImportDate: "2026-10-31",
+		ImportUser: "家族", ImportAmount: 890}
+	detail := model.ExpenseInput{Date: "2026-11-01", ImportUser: "家族", Amount: 890}
+	if !matchesPendingImport(pending, detail, "楽天カード") {
+		t.Fatal("月末の速報明細と翌月1日の詳細明細を照合できません")
+	}
+	unpaired := model.Expense{ImportStatus: "complete", ImportCard: "楽天カード", ImportDate: "2026-11-01",
+		ImportUser: "家族", ImportAmount: 890}
+	if !matchesUnpairedDetail(unpaired, model.ExpenseInput{Date: "2026-10-31", ImportUser: "家族", Amount: 890}, "楽天カード") {
+		t.Fatal("詳細先着で月をまたぐ明細を照合できません")
+	}
+
+	// 詳細版の日付が速報版より前になること、2日以上ずれることは無いので照合しない
+	for _, date := range []string{"2026-11-02", "2026-10-30"} {
+		other := pending
+		other.ImportDate = date
+		if matchesPendingImport(other, detail, "楽天カード") {
+			t.Fatalf("速報の利用日 %s を詳細 %s と照合しました", date, detail.Date)
+		}
+	}
+	if importGroupKey("楽天カード", detail) != importGroupKey("楽天カード", model.ExpenseInput{Date: "2026-10-31", ImportUser: "家族", Amount: 890}) {
+		t.Fatal("利用日がずれた速報と詳細が別々に直列化されます")
+	}
+}
+
+func TestRakutenCandidatesPreferSameDate(t *testing.T) {
+	dates := pendingDatesForDetail("2026-11-01")
+	if len(dates) != 2 || dates[0] != "2026-11-01" || dates[1] != "2026-10-31" {
+		t.Fatalf("照合する日付が不正です: %v", dates)
+	}
+	candidates := []model.Expense{
+		{ID: "前日", ImportDate: "2026-10-31", CreatedAt: "2026-10-01T00:00:00Z"},
+		{ID: "同日", ImportDate: "2026-11-01", CreatedAt: "2026-11-02T00:00:00Z"},
+	}
+	sortCandidatesByDate(candidates, dates)
+	if candidates[0].ID != "同日" {
+		t.Fatalf("同日の候補が優先されません: %+v", candidates)
+	}
+	records := []dynamo.ExcludedImport{
+		{ID: "b", Date: "2026-11-01", CreatedAt: "2026-11-02T00:00:00Z"},
+		{ID: "a", Date: "2026-10-31", CreatedAt: "2026-11-03T00:00:00Z"},
+		{ID: "c", Date: "2026-10-31", CreatedAt: "2026-11-01T00:00:00Z"},
+	}
+	sortExcludedImports(records, detailDatesForPending("2026-10-31"))
+	if records[0].ID != "c" || records[1].ID != "a" || records[2].ID != "b" {
+		t.Fatalf("除外記録の照合順が不正です: %+v", records)
 	}
 }

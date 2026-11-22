@@ -7,6 +7,7 @@ import (
 	"os"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -989,22 +990,19 @@ func (c *Client) GetImportResult(ctx context.Context, key string) (string, error
 }
 
 // FindPendingImportedExpenses は元の利用日などで速報明細を強い整合性で検索する。
-func (c *Client) FindPendingImportedExpenses(ctx context.Context, card, date, user string, amount int) ([]model.Expense, error) {
+// dates には照合してよい利用日をすべて渡す。
+func (c *Client) FindPendingImportedExpenses(ctx context.Context, card string, dates []string, user string, amount int) ([]model.Expense, error) {
+	dateExpr, values := importMatchValues(card, dates, user, amount)
+	values[":status"] = &types.AttributeValueMemberS{Value: "pending"}
 	var result []model.Expense
 	var lastKey map[string]types.AttributeValue
 	for {
 		out, err := c.db.Scan(ctx, &dynamodb.ScanInput{
-			TableName:        &c.expenseTable,
-			ConsistentRead:   aws.Bool(true),
-			FilterExpression: aws.String("importStatus = :status AND importCard = :card AND importDate = :date AND importUser = :user AND importAmount = :amount"),
-			ExpressionAttributeValues: map[string]types.AttributeValue{
-				":status": &types.AttributeValueMemberS{Value: "pending"},
-				":card":   &types.AttributeValueMemberS{Value: card},
-				":date":   &types.AttributeValueMemberS{Value: date},
-				":user":   &types.AttributeValueMemberS{Value: user},
-				":amount": &types.AttributeValueMemberN{Value: strconv.Itoa(amount)},
-			},
-			ExclusiveStartKey: lastKey,
+			TableName:                 &c.expenseTable,
+			ConsistentRead:            aws.Bool(true),
+			FilterExpression:          aws.String("importStatus = :status AND importCard = :card AND " + dateExpr + " AND importUser = :user AND importAmount = :amount"),
+			ExpressionAttributeValues: values,
+			ExclusiveStartKey:         lastKey,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("速報明細の検索に失敗: %w", err)
@@ -1139,28 +1137,160 @@ func (c *Client) CommitGroupedImport(ctx context.Context, groupKey string, revis
 }
 
 // FindUnpairedDetailedExpenses は速報明細と未照合の詳細版を強い整合性で探す。
-func (c *Client) FindUnpairedDetailedExpenses(ctx context.Context, card, date, user string, amount int) ([]model.Expense, error) {
+// dates には照合してよい利用日をすべて渡す。
+func (c *Client) FindUnpairedDetailedExpenses(ctx context.Context, card string, dates []string, user string, amount int) ([]model.Expense, error) {
+	dateExpr, values := importMatchValues(card, dates, user, amount)
+	values[":status"] = &types.AttributeValueMemberS{Value: "complete"}
 	var result []model.Expense
 	var lastKey map[string]types.AttributeValue
 	for {
 		out, err := c.db.Scan(ctx, &dynamodb.ScanInput{
-			TableName:        &c.expenseTable,
-			ConsistentRead:   aws.Bool(true),
-			FilterExpression: aws.String("importStatus = :status AND importCard = :card AND importDate = :date AND importUser = :user AND importAmount = :amount AND attribute_not_exists(preliminaryMessageId)"),
-			ExpressionAttributeValues: map[string]types.AttributeValue{
-				":status": &types.AttributeValueMemberS{Value: "complete"},
-				":card":   &types.AttributeValueMemberS{Value: card},
-				":date":   &types.AttributeValueMemberS{Value: date},
-				":user":   &types.AttributeValueMemberS{Value: user},
-				":amount": &types.AttributeValueMemberN{Value: strconv.Itoa(amount)},
-			},
-			ExclusiveStartKey: lastKey,
+			TableName:                 &c.expenseTable,
+			ConsistentRead:            aws.Bool(true),
+			FilterExpression:          aws.String("importStatus = :status AND importCard = :card AND " + dateExpr + " AND importUser = :user AND importAmount = :amount AND attribute_not_exists(preliminaryMessageId)"),
+			ExpressionAttributeValues: values,
+			ExclusiveStartKey:         lastKey,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("未照合の詳細明細の検索に失敗: %w", err)
 		}
 		page, err := unmarshalExpenses(out.Items)
 		if err != nil {
+			return nil, err
+		}
+		result = append(result, page...)
+		if len(out.LastEvaluatedKey) == 0 {
+			return result, nil
+		}
+		lastKey = out.LastEvaluatedKey
+	}
+}
+
+// importMatchValues は取込照合の条件値と、利用日を複数候補で絞り込む式を返す。
+func importMatchValues(card string, dates []string, user string, amount int) (string, map[string]types.AttributeValue) {
+	values := map[string]types.AttributeValue{
+		":card":   &types.AttributeValueMemberS{Value: card},
+		":user":   &types.AttributeValueMemberS{Value: user},
+		":amount": &types.AttributeValueMemberN{Value: strconv.Itoa(amount)},
+	}
+	names := make([]string, len(dates))
+	for i, d := range dates {
+		names[i] = ":date" + strconv.Itoa(i)
+		values[names[i]] = &types.AttributeValueMemberS{Value: d}
+	}
+	return "importDate IN (" + strings.Join(names, ", ") + ")", values
+}
+
+// ExcludedImport は除外設定で取り込まなかった詳細明細の記録。
+// 後から届く速報明細を打ち消すために、照合されるまで残す。
+type ExcludedImport struct {
+	ID        string `dynamodbav:"id"`
+	Card      string `dynamodbav:"importCard"`
+	Date      string `dynamodbav:"importDate"`
+	User      string `dynamodbav:"importUser"`
+	Amount    int    `dynamodbav:"importAmount"`
+	CreatedAt string `dynamodbav:"createdAt"`
+}
+
+const excludedImportType = "expenseImportExcluded"
+
+// ExcludedImportResult は除外済みの明細に付ける取込記録の値。
+const ExcludedImportResult = "excluded"
+
+func importMarkerPut(tableName, markerKey, expenseID string) types.TransactWriteItem {
+	return types.TransactWriteItem{Put: &types.Put{
+		TableName: aws.String(tableName),
+		Item: map[string]types.AttributeValue{
+			"type":      &types.AttributeValueMemberS{Value: "expenseImport"},
+			"id":        &types.AttributeValueMemberS{Value: markerKey},
+			"expenseId": &types.AttributeValueMemberS{Value: expenseID},
+		},
+		ConditionExpression: aws.String("attribute_not_exists(id)"),
+	}}
+}
+
+func (c *Client) transactImport(ctx context.Context, items []types.TransactWriteItem) (bool, error) {
+	_, err := c.db.TransactWriteItems(ctx, &dynamodb.TransactWriteItemsInput{TransactItems: items})
+	if err == nil {
+		return true, nil
+	}
+	var canceled *types.TransactionCanceledException
+	if errors.As(err, &canceled) {
+		return false, nil
+	}
+	return false, err
+}
+
+// DeletePendingForExcludedImport は除外対象の詳細明細に対応する速報明細を削除する。
+// pendingMarkerKey には速報明細の取込識別子を渡し、速報メールの再送で復活しないようにする。
+func (c *Client) DeletePendingForExcludedImport(ctx context.Context, groupKey string, revision int, markerKey, pendingMarkerKey, expenseID, previousUpdatedAt string) (bool, error) {
+	return c.transactImport(ctx, []types.TransactWriteItem{
+		{Update: importGroupRevisionUpdate(c.masterTable, groupKey, revision)},
+		importMarkerPut(c.masterTable, markerKey, ExcludedImportResult),
+		importMarkerPut(c.masterTable, pendingMarkerKey, ExcludedImportResult),
+		{Delete: &types.Delete{
+			TableName:           &c.expenseTable,
+			Key:                 map[string]types.AttributeValue{"id": &types.AttributeValueMemberS{Value: expenseID}},
+			ConditionExpression: aws.String("importStatus = :status AND updatedAt = :updated"),
+			ExpressionAttributeValues: map[string]types.AttributeValue{
+				":status":  &types.AttributeValueMemberS{Value: "pending"},
+				":updated": &types.AttributeValueMemberS{Value: previousUpdatedAt},
+			},
+		}},
+	})
+}
+
+// RecordExcludedImport は速報明細がまだ無い除外対象の詳細明細を記録する。
+func (c *Client) RecordExcludedImport(ctx context.Context, groupKey string, revision int, markerKey string, rec ExcludedImport) (bool, error) {
+	item, err := attributevalue.MarshalMap(rec)
+	if err != nil {
+		return false, err
+	}
+	item["type"] = &types.AttributeValueMemberS{Value: excludedImportType}
+	return c.transactImport(ctx, []types.TransactWriteItem{
+		{Update: importGroupRevisionUpdate(c.masterTable, groupKey, revision)},
+		importMarkerPut(c.masterTable, markerKey, ExcludedImportResult),
+		{Put: &types.Put{TableName: &c.masterTable, Item: item, ConditionExpression: aws.String("attribute_not_exists(id)")}},
+	})
+}
+
+// ConsumeExcludedImport は速報明細を除外済みの詳細明細と照合し、登録せずに処理済みにする。
+func (c *Client) ConsumeExcludedImport(ctx context.Context, groupKey string, revision int, markerKey, excludedID string) (bool, error) {
+	return c.transactImport(ctx, []types.TransactWriteItem{
+		{Update: importGroupRevisionUpdate(c.masterTable, groupKey, revision)},
+		importMarkerPut(c.masterTable, markerKey, ExcludedImportResult),
+		{Delete: &types.Delete{
+			TableName: &c.masterTable,
+			Key: map[string]types.AttributeValue{
+				"type": &types.AttributeValueMemberS{Value: excludedImportType},
+				"id":   &types.AttributeValueMemberS{Value: excludedID},
+			},
+			ConditionExpression: aws.String("attribute_exists(id)"),
+		}},
+	})
+}
+
+// FindExcludedImports は速報明細と未照合の除外記録を強い整合性で探す。
+func (c *Client) FindExcludedImports(ctx context.Context, card string, dates []string, user string, amount int) ([]ExcludedImport, error) {
+	dateExpr, values := importMatchValues(card, dates, user, amount)
+	values[":type"] = &types.AttributeValueMemberS{Value: excludedImportType}
+	var result []ExcludedImport
+	var lastKey map[string]types.AttributeValue
+	for {
+		out, err := c.db.Query(ctx, &dynamodb.QueryInput{
+			TableName:                 &c.masterTable,
+			ConsistentRead:            aws.Bool(true),
+			KeyConditionExpression:    aws.String("#type = :type"),
+			FilterExpression:          aws.String("importCard = :card AND " + dateExpr + " AND importUser = :user AND importAmount = :amount"),
+			ExpressionAttributeNames:  map[string]string{"#type": "type"},
+			ExpressionAttributeValues: values,
+			ExclusiveStartKey:         lastKey,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("除外済み明細の検索に失敗: %w", err)
+		}
+		var page []ExcludedImport
+		if err := attributevalue.UnmarshalListOfMaps(out.Items, &page); err != nil {
 			return nil, err
 		}
 		result = append(result, page...)
