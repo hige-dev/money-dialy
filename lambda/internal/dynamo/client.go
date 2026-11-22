@@ -9,7 +9,6 @@ import (
 	"strconv"
 	"strings"
 	"sync"
-	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -751,120 +750,6 @@ func (c *Client) UpdateRecurringLastCreated(ctx context.Context, id string, mont
 		return fmt.Errorf("recurring の lastCreatedMonth 更新に失敗: %w", err)
 	}
 	return nil
-}
-
-// --- 月別集計キャッシュ ---
-
-// categorySumItem は DynamoDB 内のカテゴリ別集計
-type categorySumItem struct {
-	CategoryID string `dynamodbav:"categoryId"`
-	Category   string `dynamodbav:"category"`
-	Amount     int    `dynamodbav:"amount"`
-	Color      string `dynamodbav:"color"`
-}
-
-// monthlySumCacheItem は DynamoDB 内の月別集計キャッシュ
-type monthlySumCacheItem struct {
-	Type       string            `dynamodbav:"type"`
-	ID         string            `dynamodbav:"id"`
-	Total      int               `dynamodbav:"total"`
-	ByCategory []categorySumItem `dynamodbav:"byCategory"`
-	UpdatedAt  string            `dynamodbav:"updatedAt"`
-}
-
-// GetMonthlySummaryCache は月別集計キャッシュを取得する（nil = 未キャッシュ）
-func (c *Client) GetMonthlySummaryCache(ctx context.Context, yearMonth string) (*model.MonthData, error) {
-	out, err := c.db.GetItem(ctx, &dynamodb.GetItemInput{
-		TableName: &c.masterTable,
-		Key: map[string]types.AttributeValue{
-			"type": &types.AttributeValueMemberS{Value: "monthlySummary"},
-			"id":   &types.AttributeValueMemberS{Value: yearMonth},
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("monthlySummary の取得に失敗: %w", err)
-	}
-	if out.Item == nil {
-		return nil, nil
-	}
-	var item monthlySumCacheItem
-	if err := attributevalue.UnmarshalMap(out.Item, &item); err != nil {
-		return nil, fmt.Errorf("monthlySummary のアンマーシャルに失敗: %w", err)
-	}
-	return monthlySumCacheToModel(&item), nil
-}
-
-// PutMonthlySummaryCache は月別集計キャッシュを保存する
-func (c *Client) PutMonthlySummaryCache(ctx context.Context, data *model.MonthData) error {
-	var cats []categorySumItem
-	for _, cs := range data.ByCategory {
-		cats = append(cats, categorySumItem{
-			CategoryID: cs.CategoryID, Category: cs.Category, Amount: cs.Amount, Color: cs.Color,
-		})
-	}
-	item := monthlySumCacheItem{
-		Type:       "monthlySummary",
-		ID:         data.Month,
-		Total:      data.Total,
-		ByCategory: cats,
-		UpdatedAt:  time.Now().UTC().Format(time.RFC3339),
-	}
-	av, err := attributevalue.MarshalMap(item)
-	if err != nil {
-		return fmt.Errorf("monthlySummary のマーシャルに失敗: %w", err)
-	}
-	_, err = c.db.PutItem(ctx, &dynamodb.PutItemInput{
-		TableName: &c.masterTable,
-		Item:      av,
-	})
-	if err != nil {
-		return fmt.Errorf("monthlySummary の保存に失敗: %w", err)
-	}
-	return nil
-}
-
-// BatchGetMonthlySummaryCache は複数月の集計キャッシュを一括取得する
-func (c *Client) BatchGetMonthlySummaryCache(ctx context.Context, months []string) (map[string]*model.MonthData, error) {
-	if len(months) == 0 {
-		return make(map[string]*model.MonthData), nil
-	}
-	keys := make([]map[string]types.AttributeValue, len(months))
-	for i, m := range months {
-		keys[i] = map[string]types.AttributeValue{
-			"type": &types.AttributeValueMemberS{Value: "monthlySummary"},
-			"id":   &types.AttributeValueMemberS{Value: m},
-		}
-	}
-	out, err := c.db.BatchGetItem(ctx, &dynamodb.BatchGetItemInput{
-		RequestItems: map[string]types.KeysAndAttributes{
-			c.masterTable: {Keys: keys},
-		},
-	})
-	if err != nil {
-		return nil, fmt.Errorf("monthlySummary の一括取得に失敗: %w", err)
-	}
-	result := make(map[string]*model.MonthData)
-	for _, raw := range out.Responses[c.masterTable] {
-		var item monthlySumCacheItem
-		if err := attributevalue.UnmarshalMap(raw, &item); err != nil {
-			continue
-		}
-		result[item.ID] = monthlySumCacheToModel(&item)
-	}
-	return result, nil
-}
-
-func monthlySumCacheToModel(item *monthlySumCacheItem) *model.MonthData {
-	data := &model.MonthData{
-		Month: item.ID,
-		Total: item.Total,
-	}
-	for _, c := range item.ByCategory {
-		data.ByCategory = append(data.ByCategory, model.CategorySummary{
-			CategoryID: c.CategoryID, Category: c.Category, Amount: c.Amount, Color: c.Color,
-		})
-	}
-	return data
 }
 
 // PutMasterItem は master テーブルにアイテムを保存する（移行用）

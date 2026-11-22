@@ -75,9 +75,6 @@ func TestBuildPlan(t *testing.T) {
 	if plan.Expenses[0].Category != "food-id" || plan.Expenses[0].CreatedBy != "original@example.test" || plan.Expenses[0].Visibility != "private" {
 		t.Fatalf("既存カテゴリや公開範囲が保持されません: %+v", plan.Expenses[0])
 	}
-	if !plan.Months["2026-08"] || !plan.Months["2026-09"] || plan.Months["2026-07"] {
-		t.Fatal("集計更新月が不正です")
-	}
 	next, err := BuildPlan(source, existing, append(categories, plan.Categories...), plan.Payers, plan.Places, true, "local@example.test")
 	if err != nil {
 		t.Fatal(err)
@@ -85,7 +82,7 @@ func TestBuildPlan(t *testing.T) {
 	if len(next.Categories) != 0 || len(next.Payers) != 0 || len(next.Places) != 0 || next.Expenses[1].Category != plan.Expenses[1].Category {
 		t.Fatal("再同期時にマスタが重複します")
 	}
-	if !reflect.DeepEqual(next.DeleteIDs, []string{"local-only"}) || !next.Months["2026-07"] || next.Expenses[0].CreatedBy != "local@example.test" {
+	if !reflect.DeepEqual(next.DeleteIDs, []string{"local-only"}) || next.Expenses[0].CreatedBy != "local@example.test" {
 		t.Fatalf("置き換え計画が不正: %+v", next)
 	}
 	if _, err := BuildPlan(source, nil, append(categories, model.Category{ID: "another", Name: "食費"}), nil, nil, false, ""); err == nil {
