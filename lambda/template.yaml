@@ -39,7 +39,8 @@ Parameters:
 Globals:
   Function:
     Timeout: 30
-    MemorySize: 128
+    # 128MB では CPU が足りず、コールドスタート時の TLS 接続などで数秒かかっていたため増やす
+    MemorySize: 512
 
 Resources:
   # DynamoDB テーブル: expenses

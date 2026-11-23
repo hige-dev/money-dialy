@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"money-diary/internal/dynamo"
@@ -87,24 +88,29 @@ func GetYearlySummary(ctx context.Context, client *dynamo.Client, month string, 
 
 // getMonthDataMap は複数月の集計データを取得する。
 // visibility フィルタがユーザー依存のため、常に月別クエリで計算する。
+// 月ごとのクエリは互いに独立しているので並列に実行する。
 func getMonthDataMap(ctx context.Context, client *dynamo.Client, months []string, payer string, catMaps *CategoryMaps, userEmail string) (map[string]*model.MonthData, error) {
-	result := make(map[string]*model.MonthData)
-
-	for _, ym := range months {
-		data, err := computeMonthData(ctx, client, ym, payer, catMaps, userEmail)
+	data := make([]*model.MonthData, len(months))
+	errs := make([]error, len(months))
+	var wg sync.WaitGroup
+	for i, ym := range months {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			data[i], errs[i] = computeMonthData(ctx, client, ym, payer, catMaps, userEmail)
+		}()
+	}
+	wg.Wait()
+	for _, err := range errs {
 		if err != nil {
 			return nil, err
 		}
-		result[ym] = data
 	}
 
-	// データがない月は空の MonthData で埋める
-	for _, ym := range months {
-		if _, ok := result[ym]; !ok {
-			result[ym] = &model.MonthData{Month: ym}
-		}
+	result := make(map[string]*model.MonthData, len(months))
+	for i, ym := range months {
+		result[ym] = data[i]
 	}
-
 	return result, nil
 }
 
@@ -154,8 +160,13 @@ func aggregateByCategory(expenses []model.Expense, month string, payer string, c
 		})
 	}
 
+	// マスタに無いカテゴリは並び順が同じ 0 になるため、ID 順で並びを固定する
 	sort.Slice(result, func(i, j int) bool {
-		return catMaps.SortOrder[result[i].CategoryID] < catMaps.SortOrder[result[j].CategoryID]
+		oi, oj := catMaps.SortOrder[result[i].CategoryID], catMaps.SortOrder[result[j].CategoryID]
+		if oi != oj {
+			return oi < oj
+		}
+		return result[i].CategoryID < result[j].CategoryID
 	})
 
 	return result

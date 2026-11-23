@@ -10,6 +10,11 @@ import (
 	"money-diary/internal/model"
 )
 
+const (
+	googleIssuer  = "https://accounts.google.com"
+	googleJWKSURL = "https://www.googleapis.com/oauth2/v3/certs"
+)
+
 var (
 	verifier     *oidc.IDTokenVerifier
 	verifierOnce sync.Once
@@ -26,19 +31,16 @@ type claims struct {
 
 func getVerifier(ctx context.Context) (*oidc.IDTokenVerifier, error) {
 	verifierOnce.Do(func() {
-		provider, err := oidc.NewProvider(ctx, "https://accounts.google.com")
-		if err != nil {
-			verifierErr = err
-			return
-		}
-
 		clientID := os.Getenv("GOOGLE_CLIENT_ID")
 		if clientID == "" {
 			verifierErr = &verifierInitError{"GOOGLE_CLIENT_ID 環境変数が設定されていません"}
 			return
 		}
 
-		verifier = provider.Verifier(&oidc.Config{
+		// Google の公開鍵 URL は固定なので、ディスカバリーの通信を省いてコールドスタートを短くする。
+		// 鍵の取得は最初の検証時に行い、以降はキャッシュされる。
+		keySet := oidc.NewRemoteKeySet(context.WithoutCancel(ctx), googleJWKSURL)
+		verifier = oidc.NewVerifier(googleIssuer, keySet, &oidc.Config{
 			ClientID:        clientID,
 			SkipExpiryCheck: true,
 		})
