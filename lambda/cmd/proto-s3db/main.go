@@ -33,10 +33,10 @@ import (
 )
 
 const (
-	keyPrefix     = "proto/"
-	moneyKey      = "proto/money.db"
-	benchKey      = "proto/bench.db"
-	raceKey       = "proto/race.db"
+	keyPrefix = "proto/"
+	moneyKey  = "proto/money.db"
+	benchKey  = "proto/bench.db"
+	raceKey   = "proto/race.db"
 )
 
 type env struct {
